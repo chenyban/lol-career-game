@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useGameStore, summonerSpells, runePages, matchComponents, matchCompletedItems, getAllShopItems, canCombine, getRecommendedItems, getChampionAbilities } from '../store/gameStore';
+import { useGameStore, summonerSpells, runePages, matchComponents, matchCompletedItems, getAllShopItems, canCombine, getRecommendedItems, getChampionAbilities, getRuneSynergy } from '../store/gameStore';
+import { getSkinsForChampion, getSkinImageUrl } from '../data/skins';
 import type { MatchEvent } from '../types';
 
 const rankColors: Record<string, string> = { unranked: '#666', demir: '#8c8c8c', bronz: '#cd7f32', gumus: '#c0c0c0', altin: '#ffd700', platin: '#e5e4e2', zumrut: '#2ecc71', elmas: '#b9f2ff', master: '#9b59b6', grandmaster: '#e74c3c', challenger: '#f1c40f' };
@@ -11,35 +12,47 @@ const DD_RUNE = 'https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles'
 function spellUrl(sp: any) { return DD_SPELL + '/' + sp.imageId + '.png'; }
 function runeUrl(rp: any) { return DD_RUNE + '/' + rp.imageId + '/' + rp.imageId.split('/')[1] + '.png'; }
 
-type LoLPage = 'home' | 'champselect' | 'match' | 'postmatch' | 'store' | 'leaderboard' | 'profile' | 'tournament';
+type LoLPage = 'home' | 'lobby' | 'champselect' | 'skinselect' | 'match' | 'postmatch' | 'store' | 'leaderboard' | 'profile' | 'tournament';
 
 export function LoLClientUI() {
   const s = useGameStore();
   const [page, setPage] = useState<LoLPage>('home');
   const [showQueue, setShowQueue] = useState(false);
-  const [showLanePicker, setShowLanePicker] = useState(false);
   const [matchMode, setMatchMode] = useState<'normal' | 'ranked'>('normal');
   const [preferredLane, setPreferredLane] = useState('Üst Koridor');
   const [lastChampionId, setLastChampionId] = useState('');
-  const [showFriends, setShowFriends] = useState(false);
+  const [skinChampionId, setSkinChampionId] = useState('');
+  const [skinSpells, setSkinSpells] = useState<string[]>(['flash', 'ignite']);
+  const [skinRune, setSkinRune] = useState('conqueror');
+  const [showFriends, setShowFriends] = useState(true);
 
   const startMatch = (mode: 'normal' | 'ranked') => {
     if (mode === 'ranked' && s.level < 20) return;
     setMatchMode(mode);
     setShowQueue(false);
-    setShowLanePicker(true);
+    setPage('lobby');
   };
 
   const pickLane = (lane: string) => {
     setPreferredLane(lane);
-    setShowLanePicker(false);
+  };
+
+  const startFromLobby = (lane: string) => {
+    setPreferredLane(lane);
     setPage('champselect');
   };
 
   const beginGame = (championId: string, spells: string[], rune: string) => {
     setLastChampionId(championId);
-    s.setMatchSpells(spells);
-    s.setMatchRune(rune);
+    setSkinChampionId(championId);
+    setSkinSpells(spells);
+    setSkinRune(rune);
+    setPage('skinselect');
+  };
+
+  const startFromSkinSelect = () => {
+    s.setMatchSpells(skinSpells);
+    s.setMatchRune(skinRune);
     s.playMatch(matchMode);
     setPage('match');
   };
@@ -124,7 +137,9 @@ export function LoLClientUI() {
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: page === 'home' && !s.matchActive ? 0 : 20 }}>
         {page === 'home' && !s.matchActive && <HomeView s={s} onPlay={() => setShowQueue(true)} />}
+        {page === 'lobby' && !s.matchActive && <LobbyView s={s} mode={matchMode} preferredLane={preferredLane} onLanePick={pickLane} onStart={(lane: string) => startFromLobby(lane)} onBack={() => setPage('home')} />}
         {page === 'champselect' && !s.matchActive && <ChampSelectView s={s} mode={matchMode} preferredLane={preferredLane} onReady={beginGame} onBack={() => setPage('home')} />}
+        {page === 'skinselect' && !s.matchActive && <SkinSelectView championId={skinChampionId} onStart={startFromSkinSelect} onBack={() => setPage('champselect')} />}
         {(page === 'match' || s.matchActive) && <MatchView s={s} onFinish={handleFinishMatch} onBack={() => setPage('home')} />}
         {page === 'postmatch' && <PostMatchView s={s} onBack={() => setPage('home')} onPlayAgain={() => setShowQueue(true)} />}
         {page === 'store' && !s.matchActive && <StoreView s={s} />}
@@ -146,43 +161,10 @@ export function LoLClientUI() {
               </button>
               <button onClick={() => startMatch('ranked')} disabled={s.level < 20}
                 style={{ padding: '14px 0', borderRadius: 8, border: 'none', background: s.level < 20 ? '#2a2a4a' : 'linear-gradient(135deg, #c8a85e, #a8862e)', color: s.level < 20 ? '#666' : '#0a0a1a', fontSize: 14, fontWeight: 700, cursor: s.level < 20 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' }}>
-                ⚔️ DERECELI OYUN {s.level < 20 ? '(Seviye 20 gerekli)' : ''}
+                ⚔️ DERECELI OYUN {s.level < 20 ? '(Seviye 20 gerekli)' : (s.rank.tier === 'unranked' && s.previousSeasonRank !== 'unranked' ? '(Sezon Yerlesme)' : '')}
               </button>
             </div>
             <button onClick={() => setShowQueue(false)} style={{ marginTop: 14, padding: '8px 24px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Iptal
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Lane Picker Popup */}
-      {showLanePicker && (
-        <div onClick={() => setShowLanePicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0d1025', border: '1px solid #c8a85e', borderRadius: 12, padding: 32, width: 380, textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>Lane Secimi</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>Hangi rolde oynamak istersin?</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                { lane: 'Üst Koridor', icon: '🏰', desc: 'Tek basina ust bolge' },
-                { lane: 'Orman', icon: '🌲', desc: 'Haritada gezerek takima yardim et' },
-                { lane: 'Orta Koridor', icon: '⚡', desc: 'Oyunun merkezinde mucadele' },
-                { lane: 'Alt Koridor', icon: '🎯', desc: 'Minisporcu ile alt bolge' },
-                { lane: 'Destek', icon: '🛡️', desc: 'Takimini koru ve avantaj sagla' },
-              ].map(x => (
-                <button key={x.lane} onClick={() => pickLane(x.lane)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#1a1a2e', color: '#e0e0e0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#c8a85e'; e.currentTarget.style.background = 'rgba(200,168,94,0.08)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = '#1a1a2e'; }}>
-                  <span style={{ fontSize: 22 }}>{x.icon}</span>
-                  <div>
-                    <div>{x.lane}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 400 }}>{x.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowLanePicker(false)} style={{ marginTop: 12, padding: '8px 24px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
               Iptal
             </button>
           </div>
@@ -192,64 +174,67 @@ export function LoLClientUI() {
   );
 }
 
-const friendPool = [
-  { name: 'xXShadowXx', status: 'online' as const, level: 142, rank: 'elmas' },
-  { name: 'YasuoMain', status: 'inGame' as const, level: 87, rank: 'platin' },
-  { name: 'NightWolfTR', status: 'online' as const, level: 210, rank: 'master' },
-  { name: 'ZedGod', status: 'inGame' as const, level: 56, rank: 'altin' },
-  { name: 'ThreshPrince', status: 'offline' as const, level: 33, rank: 'gumus' },
-  { name: 'SoloCarry', status: 'inGame' as const, level: 178, rank: 'elmas' },
-  { name: 'DiamondSoul', status: 'online' as const, level: 95, rank: 'zumrut' },
-  { name: 'RivenOnly', status: 'offline' as const, level: 410, rank: 'challenger' },
-  { name: 'BladeStorm', status: 'inGame' as const, level: 22, rank: 'bronz' },
-  { name: 'EzrealPenta', status: 'online' as const, level: 66, rank: 'altin' },
-  { name: 'KatarinaGod', status: 'offline' as const, level: 155, rank: 'elmas' },
-  { name: 'FakerFanboy', status: 'online' as const, level: 44, rank: 'demir' },
-  { name: 'JungleDiff', status: 'inGame' as const, level: 120, rank: 'zumrut' },
-  { name: 'Tyler1Fan', status: 'online' as const, level: 89, rank: 'platin' },
-  { name: 'OneTapKing', status: 'offline' as const, level: 67, rank: 'altin' },
-];
+const friendPool: any[] = [];
 
 function FriendsPanel({ s, onClose }: { s: any; onClose: () => void }) {
-  const friends = useMemo(() => [...friendPool].sort((a, b) => {
-    const order = { online: 0, inGame: 1, offline: 2 };
-    return order[a.status] - order[b.status];
-  }), []);
+  const { friends, inviteToDuo } = useGameStore();
+  const allFriends = friends.length > 0 ? [...friends] : [];
+  allFriends.sort((a: any, b: any) => {
+    if (a.isOnline && !b.isOnline) return -1;
+    if (!a.isOnline && b.isOnline) return 1;
+    return 0;
+  });
 
-  const statusDot = (st: string) => {
-    const c = st === 'online' ? '#2ecc71' : st === 'inGame' ? '#4fc3f7' : '#666';
+  const statusDot = (online: boolean) => {
+    const c = online ? '#2ecc71' : '#666';
     return <span style={{ width: 7, height: 7, borderRadius: '50%', background: c, display: 'inline-block', marginRight: 6, flexShrink: 0 }} />;
   };
 
-  const statusLabel = (st: string) => st === 'online' ? 'Cevrimici' : st === 'inGame' ? 'Oyunda' : 'Cevrimdisi';
-
   return (
-    <div style={{ position: 'absolute', top: 56, right: 20, width: 240, maxHeight: 380, background: '#0d1025', border: '1px solid #4fc3f7', borderRadius: 8, overflow: 'hidden', zIndex: 500, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+    <div style={{ position: 'absolute', top: 56, right: 20, width: 260, maxHeight: 420, background: '#0d1025', border: '1px solid #4fc3f7', borderRadius: 8, overflow: 'hidden', zIndex: 500, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'rgba(79,195,247,0.05)' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#4fc3f7' }}>👥 Arkadaslar ({friendPool.length})</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#4fc3f7' }}>
+          👥 Arkadaslar ({allFriends.length})
+        </span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' }}>✕</button>
       </div>
-      <div style={{ overflow: 'auto', maxHeight: 320 }}>
-        {friends.map((f, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.02)', cursor: 'default', transition: 'all 0.1s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, ' + (rankColors[f.rank] || '#666') + ', #1a1a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-              {f.name.charAt(0)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#e0e0e0' }}>{f.name}</div>
-              <div style={{ display: 'flex', alignItems: 'center', fontSize: 10 }}>
-                {statusDot(f.status)}
-                <span style={{ color: f.status === 'online' ? '#2ecc71' : f.status === 'inGame' ? '#4fc3f7' : '#666' }}>{statusLabel(f.status)}</span>
-              </div>
-            </div>
-            <div style={{ fontSize: 9, color: 'var(--text-secondary)', textAlign: 'right' }}>
-              <div>Lv.{f.level}</div>
-              <div style={{ color: rankColors[f.rank] || '#666' }}>{f.rank.toUpperCase()}</div>
-            </div>
+      <div style={{ overflow: 'auto', maxHeight: 370 }}>
+        {allFriends.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: '#666', fontSize: 11 }}>
+            Henuz arkadasin yok. Mac sonunda oyunculari ekleyebilirsin.
           </div>
-        ))}
+        ) : (
+          allFriends.map((f: any, i: number) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.02)', cursor: 'default', transition: 'all 0.1s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg, ' + (rankColors[f.rank] || '#666') + ', #1a1a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                {f.name.charAt(0)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#e0e0e0' }}>{f.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', fontSize: 10 }}>
+                  {statusDot(f.isOnline)}
+                  <span style={{ color: f.isOnline ? '#2ecc71' : '#666' }}>{f.isOnline ? 'Cevrimici' : 'Cevrimdisi'}</span>
+                </div>
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-secondary)', textAlign: 'right' }}>
+                <div>Lv.{f.level}</div>
+                <div style={{ color: rankColors[f.rank] || '#666' }}>{f.rank.toUpperCase()}</div>
+              </div>
+              {f.isOnline && (
+                <button onClick={() => inviteToDuo(f.name)}
+                  style={{
+                    padding: '3px 8px', borderRadius: 4, border: '1px solid #c8a85e',
+                    background: 'rgba(200,168,94,0.1)', color: '#c8a85e',
+                    fontSize: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                  }}>
+                  Duo
+                </button>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
@@ -296,19 +281,29 @@ const newsPool = [
 
 function HomeView({ s, onPlay }: { s: any; onPlay: () => void }) {
   const news = useMemo(() => [...newsPool].sort(() => Math.random() - 0.5).slice(0, 8), []);
+  const seasonNames: Record<string, string> = { winter: 'KIS SEZONU', spring: 'ILKBAHAR SEZONU', summer: 'YAZ SEZONU' };
+  const isPlacement = s.rank.tier === 'unranked' && s.previousSeasonRank !== 'unranked';
+  const placementInfo = isPlacement ? `(Sezon Yerlesme ${s.seasonPlacementGamesPlayed}/3)` : '';
+  const seasonBannerText = seasonNames[s.season] || 'SEZON';
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Hero banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0d1025 0%, #1a0a2e 50%, #0d1025 100%)', borderBottom: '1px solid var(--border)', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div style={{ fontSize: 48 }}>🏆</div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 'bold', color: '#c8a85e', marginBottom: 4 }}>YAZ SEZONU AKTIF</div>
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>Worlds 2026</div>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.seasonWins}G - {s.seasonLosses}M | {s.rank.tier === 'unranked' ? 'UNRANKED' : s.rank.tier.toUpperCase()} {s.rank.tier !== 'unranked' ? s.rank.lp + 'LP' : ''} {s.rank.division ? '• ' + 'I II III IV'.split(' ')[4 - s.rank.division] : ''}</div>
+      <div style={{ background: 'linear-gradient(135deg, #0d1025 0%, #1a0a2e 50%, #0d1025 100%)', borderBottom: '1px solid rgba(200,168,94,0.15)', padding: '28px 32px', display: 'flex', alignItems: 'center', gap: 24, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 25% 50%, rgba(200,168,94,0.06) 0%, transparent 50%), radial-gradient(ellipse at 75% 50%, rgba(79,195,247,0.04) 0%, transparent 50%)', pointerEvents: 'none' }} />
+        <div style={{ fontSize: 52, filter: 'drop-shadow(0 4px 8px rgba(200,168,94,0.2))', zIndex: 1 }}>🏆</div>
+        <div style={{ flex: 1, zIndex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#c8a85e', marginBottom: 4, letterSpacing: 2, textTransform: 'uppercase' }}>{seasonBannerText} Aktif</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, color: '#fff' }}>Sezon {s.seasonNumber} <span style={{ color: '#888', fontSize: 13, fontWeight: 400 }}>• Gun {s.seasonDay}/30</span></div>
+          {isPlacement && (
+            <div style={{ fontSize: 11, color: '#ffd93d', fontWeight: 600, marginBottom: 2, padding: '2px 10px', borderRadius: 4, background: 'rgba(255,217,61,0.08)', display: 'inline-block' }}>⚡ Sezon Yerlesmesi: {s.seasonPlacementGamesPlayed}/3 mac</div>
+          )}
+          <div style={{ fontSize: 11, color: '#888' }}>{s.seasonWins}G - {s.seasonLosses}M | {s.rank.tier === 'unranked' ? (isPlacement ? placementInfo : 'UNRANKED') : s.rank.tier.toUpperCase()} {s.rank.tier !== 'unranked' ? s.rank.lp + 'LP' : ''} {s.rank.division ? '• ' + 'I II III IV'.split(' ')[4 - s.rank.division] : ''}</div>
         </div>
         <button onClick={onPlay}
-          style={{ padding: '10px 28px', borderRadius: 4, border: 'none', background: 'linear-gradient(135deg, #c8a85e, #a8862e)', color: '#0a0a1a', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1 }}>
+          style={{ padding: '14px 36px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #c8a85e, #a8862e)', color: '#0a0a1a', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1, boxShadow: '0 4px 20px rgba(200,168,94,0.25)', transition: 'all 0.2s', zIndex: 1 }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.04)'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(200,168,94,0.4)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(200,168,94,0.25)'; }}>
           ▶ OYNA
         </button>
       </div>
@@ -689,18 +684,24 @@ function ChampSelectView({ s, mode, preferredLane, onReady, onBack }: { s: any; 
           <span style={{ color: '#c8a85e', fontWeight: 700, fontSize: 9, minWidth: 50 }}>RUN</span>
           {runePages.map((rp: any) => {
             const sel = myRune === rp.id;
+            const playerChamp = mySlot?.champion || '';
+            const synergy = getRuneSynergy(playerChamp, rp.id);
+            const isRec = synergy > 0;
+            const isAnti = synergy < 0;
             return (
-              <div key={rp.id} onClick={() => setMyRune(rp.id)} title={rp.name + ': ' + rp.description}
+              <div key={rp.id} onClick={() => setMyRune(rp.id)} title={rp.name + ': ' + rp.description + (isRec ? ' (Onerilen ✓)' : isAnti ? ' (Onerilmez ✗)' : '')}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px 3px 3px', borderRadius: 5, cursor: 'pointer',
-                  border: '2px solid ' + (sel ? rp.color : 'rgba(255,255,255,0.08)'),
-                  background: sel ? (rp.color + '22') : 'transparent',
-                  fontWeight: sel ? 700 : 400, fontSize: 10,
+                  border: '2px solid ' + (sel ? rp.color : isRec ? '#2ecc71' : isAnti ? '#f44336' : 'rgba(255,255,255,0.08)'),
+                  background: sel ? (rp.color + '22') : (isRec ? 'rgba(46,204,113,0.08)' : 'transparent'),
+                  fontWeight: sel ? 700 : 400, fontSize: 10, position: 'relative',
                 }}>
                 <div style={{ width: 24, height: 24, borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
                   <img src={runeUrl(rp)} alt={rp.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 </div>
                 <span style={{ color: sel ? rp.color : '#666' }}>{rp.name}</span>
+                {isRec && <span style={{ fontSize: 8, color: '#2ecc71', fontWeight: 700 }}>✓</span>}
+                {isAnti && <span style={{ fontSize: 8, color: '#f44336', fontWeight: 700 }}>✗</span>}
               </div>
             );
           })}
@@ -802,6 +803,7 @@ function ShopPanel({ s, gold, items, onClose }: { s: any; gold: number; items: s
     { key: 'AD', label: 'Saldiri', emoji: '⚔️' },
     { key: 'AP', label: 'Buyu', emoji: '🪄' },
     { key: 'Tank', label: 'Savunma', emoji: '🛡️' },
+    { key: 'Support', label: 'Destek', emoji: '🤝' },
     { key: 'Boots', label: 'Botlar', emoji: '👢' },
     { key: 'Utility', label: 'Yardimci', emoji: '🧪' },
   ];
@@ -878,6 +880,246 @@ function ShopPanel({ s, gold, items, onClose }: { s: any; gold: number; items: s
 }
 
 /* ========== MATCH VIEW ========== */
+function SkinSelectView({ championId, onStart, onBack }: { championId: string; onStart: () => void; onBack: () => void }) {
+  const { champions, ownedSkins } = useGameStore();
+  const champion = champions.find((c: any) => c.id === championId);
+  const [countdown, setCountdown] = useState(10);
+  const [selectedSkin, setSelectedSkin] = useState<string | null>(null);
+
+  const allSkins = getSkinsForChampion(championId);
+  const ownedSkinNums = ownedSkins[championId] || [];
+  const skins = allSkins.filter(s => s.num === 0 || ownedSkinNums.includes(s.num));
+
+  const handleStart = () => {
+    onStart();
+  };
+
+  useEffect(() => {
+    if (countdown <= 0) { handleStart(); return; }
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const selectedSkinData = selectedSkin ? skins.find(s => s.name === selectedSkin) : null;
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 10px', textAlign: 'center' }}>
+      {/* Countdown */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 48, fontWeight: 900, color: countdown <= 3 ? '#f44336' : '#c8a85e', transition: 'color 0.5s', lineHeight: 1 }}>
+          {countdown}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Mac baslamadan once kostum sec</div>
+      </div>
+
+      {/* Skin Preview - Large */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          width: 260, height: 380, borderRadius: 12, overflow: 'hidden',
+          border: '3px solid ' + (selectedSkinData ? '#c8a85e' : 'var(--border)'),
+          margin: '0 auto', background: '#0a0a1a',
+          position: 'relative',
+        }}>
+          {selectedSkinData ? (
+            <img
+              src={getSkinImageUrl(championId, selectedSkinData.num)}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 16, color: '#666' }}>Kostum secmek icin<br/>asagidan bir kostume tikla</div>
+            </div>
+          )}
+          {selectedSkinData && (
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 14px',
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.9))',
+              textAlign: 'left',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#c8a85e' }}>{selectedSkinData.name}</div>
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 16, fontWeight: 800, color: '#e0e0e0' }}>
+          {champion?.name}
+        </div>
+      </div>
+
+      {/* Skin Options */}
+      {skins.length <= 1 ? (
+        <div style={{ marginBottom: 24, padding: '16px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(200,168,94,0.05)', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: '#c8a85e', marginBottom: 6 }}>Bu sampiyonun sadece klasik kostumu var.</div>
+          <div style={{ fontSize: 10, color: '#888' }}>Magazadan yeni kostumler satin alabilirsin.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(skins.length, 6)}, 1fr)`, gap: 8, marginBottom: 20 }}>
+          {skins.map(skin => (
+          <button key={skin.num} onClick={() => setSelectedSkin(skin.name)}
+            style={{
+              borderRadius: 10, border: '2px solid ' + (selectedSkin === skin.name ? '#c8a85e' : 'var(--border)'),
+              background: selectedSkin === skin.name ? 'rgba(200,168,94,0.15)' : '#0d1025',
+              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              padding: 0, overflow: 'hidden', transition: 'all 0.15s',
+              transform: selectedSkin === skin.name ? 'translateY(-3px)' : 'none',
+              boxShadow: selectedSkin === skin.name ? '0 6px 20px rgba(200,168,94,0.3)' : 'none',
+            }}
+            onMouseEnter={e => { if (selectedSkin !== skin.name) e.currentTarget.style.borderColor = '#c8a85e'; }}
+            onMouseLeave={e => { if (selectedSkin !== skin.name) e.currentTarget.style.borderColor = 'var(--border)'; }}>
+            <div style={{
+              width: '100%', aspectRatio: '0.7', overflow: 'hidden',
+              background: '#0a0a1a',
+            }}>
+              <img
+                src={getSkinImageUrl(championId, skin.num)}
+                alt={skin.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => {
+                  (e.target as HTMLImageElement).src = DD + '/' + championId + '.png';
+                }}
+              />
+            </div>
+            <div style={{ padding: '6px 4px' }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: selectedSkin === skin.name ? '#c8a85e' : '#e0e0e0' }}>{skin.name}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+      )}
+
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={onBack}
+          style={{ flex: 1, padding: '14px 0', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          ← Geri
+        </button>
+        <button onClick={handleStart}
+          style={{ flex: 2, padding: '14px 0', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #c8a85e, #a8862e)', color: '#0a0a1a', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1 }}>
+          ⚡ MACA BASLA ({countdown > 0 ? countdown + 's' : 'Simdi!'})
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MatchMinimap({ laneChamps, events, currentStep }: { laneChamps: any[]; events: any[]; currentStep: number }) {
+  const DD = 'https://ddragon.leagueoflegends.com/cdn/14.10.1/img/champion';
+  const processedEvents = events.slice(0, currentStep + 1);
+  
+  // Track player deaths from events
+  const totalPlayerDeaths = processedEvents.reduce((sum, ev) => sum + (ev.kdaEffect?.deaths || 0), 0);
+  let botDeathPool = 0;
+  processedEvents.forEach(ev => {
+    if (ev.type === 'negative' || (ev.kdaEffect && ev.kdaEffect.deaths > 0)) botDeathPool += 1;
+  });
+
+  const laneChampsWithStatus = laneChamps.map((ch: any) => {
+    const isPlayer = ch.name === (laneChamps[0]?.name);
+    const deaths = isPlayer ? totalPlayerDeaths : (botDeathPool > 0 ? Math.floor(Math.random() * Math.min(2, botDeathPool + 1)) : 0);
+    return { ...ch, alive: deaths === 0, isPlayer };
+  });
+
+  const getChamp = (lane: string, team: 'blue' | 'red') => {
+    return laneChampsWithStatus.find((c: any) => c.lane === lane && c.team === team);
+  };
+
+  // Position map for the actual Summoner's Rift layout
+  // Blue = bottom-left, Red = top-right
+  const lanePos: { lane: string; blueTop: string; blueLeft: string; redTop: string; redLeft: string }[] = [
+    { lane: 'top',    blueTop: '20%', blueLeft: '30%', redTop: '16%', redLeft: '62%' },
+    { lane: 'jungle', blueTop: '38%', blueLeft: '42%', redTop: '32%', redLeft: '56%' },
+    { lane: 'mid',    blueTop: '50%', blueLeft: '38%', redTop: '44%', redLeft: '58%' },
+    { lane: 'bot',    blueTop: '66%', blueLeft: '40%', redTop: '60%', redLeft: '56%' },
+    { lane: 'support',blueTop: '70%', blueLeft: '46%', redTop: '56%', redLeft: '52%' },
+  ];
+
+  const deadBlue: any[] = [];
+  const deadRed: any[] = [];
+  laneChampsWithStatus.filter(c => !c.alive).forEach(c => {
+    if (c.team === 'blue') deadBlue.push(c);
+    else deadRed.push(c);
+  });
+
+  return (
+    <div style={{
+      width: '100%', height: 300, borderRadius: 12, overflow: 'hidden',
+      position: 'relative', marginBottom: 8, border: '2px solid #1a3a1a',
+      background: '#061006',
+    }}>
+      {/* Summoner's Rift background image */}
+      <img src="/sihirdar-vadisi.webp" alt=""
+        style={{
+          width: '100%', height: '100%', objectFit: 'cover',
+          position: 'absolute', inset: 0,
+        }}
+      />
+
+      {/* Champion Icons on lanes */}
+      {lanePos.map(lp => {
+        const blue = getChamp(lp.lane, 'blue');
+        const red = getChamp(lp.lane, 'red');
+        return (
+          <div key={lp.lane}>
+            {blue && blue.alive && (
+              <div style={{
+                position: 'absolute', top: lp.blueTop, left: lp.blueLeft, transform: 'translate(-50%,-50%)',
+                width: 28, height: 28, borderRadius: '50%', border: '2px solid ' + (blue.isPlayer ? '#c8a85e' : '#4fc3f7'),
+                overflow: 'hidden', background: '#0d0d1a', transition: 'all 0.3s',
+                boxShadow: blue.isPlayer ? '0 0 8px rgba(200,168,94,0.5)' : '0 0 4px rgba(79,195,247,0.3)',
+                zIndex: 10,
+              }}>
+                <img src={`${DD}/${blue.championId}.png`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+            {red && red.alive && (
+              <div style={{
+                position: 'absolute', top: lp.redTop, left: lp.redLeft, transform: 'translate(-50%,-50%)',
+                width: 28, height: 28, borderRadius: '50%', border: '2px solid #f44336',
+                overflow: 'hidden', background: '#0d0d1a', transition: 'all 0.3s',
+                boxShadow: '0 0 4px rgba(244,67,54,0.3)',
+                zIndex: 10,
+              }}>
+                <img src={`${DD}/${red.championId}.png`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Dead champions at their base */}
+      {deadBlue.length > 0 && (
+        <div style={{
+          position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 2, zIndex: 5,
+        }}>
+          {deadBlue.map((ch: any, i: number) => (
+            <div key={`db_${i}`} style={{
+              width: 20, height: 20, borderRadius: '50%', border: '1px solid #662222',
+              opacity: 0.4, overflow: 'hidden', background: '#0d0d1a',
+            }}>
+              <img src={`${DD}/${ch.championId}.png`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1)' }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {deadRed.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '3%', left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 2, zIndex: 5,
+        }}>
+          {deadRed.map((ch: any, i: number) => (
+            <div key={`dr_${i}`} style={{
+              width: 20, height: 20, borderRadius: '50%', border: '1px solid #662222',
+              opacity: 0.4, overflow: 'hidden', background: '#0d0d1a',
+            }}>
+              <img src={`${DD}/${ch.championId}.png`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(1)' }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MatchView({ s, onFinish, onBack }: { s: any; onFinish: () => void; onBack: () => void }) {
   const [step, setStep] = useState(0);
   const [showShop, setShowShop] = useState(false);
@@ -944,6 +1186,9 @@ function MatchView({ s, onFinish, onBack }: { s: any; onFinish: () => void; onBa
           <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8 }}>{Math.min(step + 1, ev.length)}/{ev.length}</span>
           <button className="btn btn-sm" onClick={onBack}>Ana Menu</button>
         </div>
+
+        {/* Minimap */}
+        <MatchMinimap laneChamps={s.matchLaneChampions || []} events={ev} currentStep={step} />
 
         {/* Match Status Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 6, fontSize: 10, flexWrap: 'wrap' }}>
@@ -1049,6 +1294,229 @@ function MatchView({ s, onFinish, onBack }: { s: any; onFinish: () => void; onBa
 }
 
 /* ========== POST-MATCH ========== */
+function LobbyView({ s, mode, preferredLane, onLanePick, onStart, onBack }: { s: any; mode: string; preferredLane: string; onLanePick: (lane: string) => void; onStart: (lane: string) => void; onBack: () => void }) {
+  const { friends, lobbyPartner, lobbyPartnerLane, setLobbyPartner, inviteToDuo } = useGameStore();
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
+
+  const lanes = [
+    { lane: 'Üst Koridor', icon: '🏰', desc: 'Tek basina ust bolge' },
+    { lane: 'Orman', icon: '🌲', desc: 'Haritada gezerek takima yardim et' },
+    { lane: 'Orta Koridor', icon: '⚡', desc: 'Oyunun merkezinde mucadele' },
+    { lane: 'Alt Koridor', icon: '🎯', desc: 'Minisporcu ile alt bolge' },
+    { lane: 'Destek', icon: '🛡️', desc: 'Takimini koru ve avantaj sagla' },
+  ];
+
+  const modeLabel = mode === 'ranked' ? 'DERECELI' : 'NORMAL';
+  const modeColor = mode === 'ranked' ? '#c8a85e' : '#4fc3f7';
+
+  const inviteFriend = (friend: any) => {
+    const otherLanes = lanes.filter(l => l.lane !== preferredLane);
+    const partnerLane = otherLanes[Math.floor(Math.random() * otherLanes.length)].lane;
+    setLobbyPartner(friend.name, partnerLane);
+    setShowFriendPicker(false);
+  };
+
+  const removePartner = () => {
+    setLobbyPartner(null, null);
+  };
+
+  return (
+    <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 10px' }}>
+      {/* Header */}
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ fontSize: 24, fontWeight: 900, color: modeColor, letterSpacing: 2 }}>{modeLabel} OYUN</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Rolunu sec, duo partnerini davet et ve maca basla!</div>
+      </div>
+
+      {/* Your Lane Selection */}
+      <div style={{ background: '#0d1025', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0', marginBottom: 12 }}>🎯 Senin Rolun</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {lanes.map(l => (
+            <button key={l.lane} onClick={() => onLanePick(l.lane)}
+              style={{
+                flex: '1 1 auto', minWidth: 120, padding: '10px 12px', borderRadius: 8,
+                border: '2px solid ' + (preferredLane === l.lane ? modeColor : 'var(--border)'),
+                background: preferredLane === l.lane ? 'rgba(200,168,94,0.08)' : 'transparent',
+                color: preferredLane === l.lane ? modeColor : 'var(--text-secondary)',
+                fontSize: 12, fontWeight: preferredLane === l.lane ? 700 : 400,
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 8,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (preferredLane !== l.lane) { e.currentTarget.style.borderColor = modeColor; e.currentTarget.style.color = modeColor; }}}
+              onMouseLeave={e => { if (preferredLane !== l.lane) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}}>
+              <span style={{ fontSize: 18 }}>{l.icon}</span>
+              <span>{l.lane}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Duo Partner Slot */}
+      <div style={{ background: '#0d1025', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0', marginBottom: 12 }}>
+          🤝 Duo Partneri
+          {lobbyPartner && <span style={{ fontSize: 10, color: '#2ecc71', marginLeft: 8 }}>✓ Bulundu</span>}
+        </div>
+
+        {lobbyPartner ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 8, background: 'rgba(46,204,113,0.06)', border: '1px solid rgba(46,204,113,0.2)' }}>
+            <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #4fc3f7, #2980b9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+              {lobbyPartner.charAt(0).toUpperCase()}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#e0e0e0' }}>{lobbyPartner}</div>
+              <div style={{ fontSize: 10, color: '#4fc3f7' }}>
+                {lanes.find(l => l.lane === lobbyPartnerLane)?.icon} {lobbyPartnerLane}
+              </div>
+            </div>
+            <button onClick={removePartner}
+              style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #f44336', background: 'rgba(244,67,54,0.1)', color: '#f44336', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cikar
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ textAlign: 'center', padding: '20px 0', color: '#666', fontSize: 11 }}>
+              Henuz bir duo partnerin yok.
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setShowFriendPicker(!showFriendPicker)}
+                style={{
+                  width: '100%', padding: '12px 0', borderRadius: 8,
+                  border: '1px dashed rgba(200,168,94,0.3)',
+                  background: 'transparent', color: '#c8a85e',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}>
+                + Duo'ya Çağır
+              </button>
+
+              {showFriendPicker && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, marginTop: 4, background: '#0d1025', border: '1px solid #4fc3f7', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                  {friends.filter((f: any) => f.isOnline).length === 0 ? (
+                    <div style={{ padding: 16, textAlign: 'center', color: '#666', fontSize: 11 }}>
+                      Cevrimici arkadasin yok. Mac sonunda oyunculari ekleyip davet edebilirsin.
+                    </div>
+                  ) : (
+                    friends.filter((f: any) => f.isOnline).map((f: any, i: number) => (
+                      <div key={i} onClick={() => inviteFriend(f)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.02)', transition: 'all 0.1s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(79,195,247,0.08)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, #4fc3f7, #2980b9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                          {f.name.charAt(0)}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: '#e0e0e0' }}>{f.name}</div>
+                          <div style={{ fontSize: 9, color: '#888' }}>Lv.{f.level} • {f.rank.toUpperCase()}</div>
+                        </div>
+                        <span style={{ fontSize: 9, color: '#2ecc71', fontWeight: 600 }}>Cevrimici</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Start Match Button */}
+      <button onClick={() => onStart(preferredLane)}
+        style={{
+          width: '100%', padding: '16px 0', borderRadius: 10, border: 'none',
+          background: 'linear-gradient(135deg, #c8a85e, #a8862e)',
+          color: '#0a0a1a', fontSize: 16, fontWeight: 800,
+          cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1,
+          boxShadow: '0 4px 20px rgba(200,168,94,0.3)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(200,168,94,0.5)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(200,168,94,0.3)'; }}>
+        ⚡ MACA BASLA
+      </button>
+
+      <div style={{ textAlign: 'center', marginTop: 12 }}>
+        <button onClick={onBack}
+          style={{ padding: '8px 24px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+          Iptal
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AllPlayersSection({ r, s }: { r: any; s: any }) {
+  const { addFriend, friends } = useGameStore();
+  const players = r.matchPlayers || [];
+
+  return (
+    <div style={{ marginBottom: 12, background: '#0d1025', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, color: '#c8a85e' }}>
+        👥 Mac Oyunculari (10)
+      </div>
+      <div style={{ overflow: 'auto', maxHeight: 300 }}>
+        {players.map((p: any, i: number) => {
+          const champ = s.champions?.find((c: any) => c.id === p.championId);
+          const champImg = champ ? DD + '/' + champ.id + '.png' : '';
+          const isAdded = friends.some((f: any) => f.name === p.name);
+          const isPlayer = p.isPlayer;
+          const kdaRatio = p.kda.deaths === 0 ? '∞' : ((p.kda.kills + p.kda.assists) / p.kda.deaths).toFixed(2);
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+              borderBottom: '1px solid rgba(255,255,255,0.02)',
+              background: isPlayer ? 'rgba(200,168,94,0.06)' : (p.team === 'blue' ? 'rgba(79,195,247,0.03)' : 'rgba(244,67,54,0.03)'),
+            }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', border: '2px solid ' + (p.team === 'blue' ? '#4fc3f7' : '#f44336'), background: '#0a0a1a', flexShrink: 0 }}>
+                <img src={champImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isPlayer ? '#c8a85e' : '#e0e0e0' }}>
+                    {p.name}
+                    {isPlayer && <span style={{ fontSize: 9, color: '#ffd93d', marginLeft: 4 }}>(Sen)</span>}
+                  </span>
+                  <span style={{ fontSize: 9, color: '#888' }}>Lv.{p.level}</span>
+                  <span style={{ fontSize: 9, color: '#888' }}>{champ?.name || p.championId}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10, marginTop: 2 }}>
+                  <span style={{ color: '#4fc3f7', fontWeight: 600 }}>{p.kda.kills}</span>
+                  <span style={{ color: '#666' }}>/</span>
+                  <span style={{ color: '#f44336', fontWeight: 600 }}>{p.kda.deaths}</span>
+                  <span style={{ color: '#666' }}>/</span>
+                  <span style={{ color: '#c8a85e', fontWeight: 600 }}>{p.kda.assists}</span>
+                  <span style={{
+                    padding: '1px 6px', borderRadius: 3, fontSize: 9, fontWeight: 700,
+                    background: kdaRatio > '4' ? 'rgba(46,204,113,0.15)' : kdaRatio > '2' ? 'rgba(255,217,61,0.15)' : 'rgba(244,67,54,0.1)',
+                    color: kdaRatio > '4' ? '#2ecc71' : kdaRatio > '2' ? '#ffd93d' : '#f44336',
+                  }}>
+                    {kdaRatio} KDA
+                  </span>
+                </div>
+              </div>
+              {!isPlayer && !isAdded && (
+                <button onClick={() => addFriend(p.name, p.level, p.rank, p.championId, p.kda)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 6, border: 'none',
+                    background: 'linear-gradient(135deg, #4fc3f7, #2980b9)',
+                    color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                  }}>
+                  + Ekle
+                </button>
+              )}
+              {isAdded && (
+                <span style={{ fontSize: 10, color: '#2ecc71', fontWeight: 600, flexShrink: 0 }}>✓ Arkadas</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PostMatchView({ s, onBack, onPlayAgain }: { s: any; onBack: () => void; onPlayAgain: () => void }) {
   const r = s.lastMatchResult;
   if (!r) return <div style={{ padding: 20, color: 'var(--text-secondary)' }}>Sonuc yukleniyor...</div>;
@@ -1179,6 +1647,9 @@ function PostMatchView({ s, onBack, onPlayAgain }: { s: any; onBack: () => void;
         </div>
       )}
 
+      {/* All Players */}
+      {r.matchPlayers && r.matchPlayers.length > 0 && <AllPlayersSection r={r} s={s} />}
+
       {/* Buttons */}
       <div style={{ display: 'flex', gap: 10 }}>
         <button onClick={onPlayAgain}
@@ -1194,11 +1665,111 @@ function PostMatchView({ s, onBack, onPlayAgain }: { s: any; onBack: () => void;
   );
 }
 
+/* ========== SKIN STORE ========== */
+function SkinStoreView({ s, buySkin }: { s: any; buySkin: (championId: string, skinNum: number, skinName: string, cost: number) => void }) {
+  const [skinSearch, setSkinSearch] = useState('');
+  const [selectedChamp, setSelectedChamp] = useState<string | null>(null);
+  const DD = 'https://ddragon.leagueoflegends.com/cdn/14.10.1/img/champion';
+
+  const filtered = s.champions.filter((c: any) => {
+    if (!c.unlocked) return false;
+    if (skinSearch && !c.name.toLowerCase().includes(skinSearch.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+    <div>
+      <input value={skinSearch} onChange={e => setSkinSearch(e.target.value)} placeholder="Sampiyon ara..."
+        style={{ padding: '6px 12px', borderRadius: 4, border: '1px solid var(--border)', background: '#0d1025', color: '#e0e0e0', fontSize: 12, fontFamily: 'inherit', width: 200, outline: 'none', marginBottom: 12 }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+        {filtered.map((c: any) => {
+          const skins = getSkinsForChampion(c.id);
+          return (
+            <button key={c.id} onClick={() => setSelectedChamp(selectedChamp === c.id ? null : c.id)}
+              style={{
+                padding: '8px 6px', borderRadius: 8, border: '2px solid ' + (selectedChamp === c.id ? '#c8a85e' : 'var(--border)'),
+                background: selectedChamp === c.id ? 'rgba(200,168,94,0.1)' : '#0d1025',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                transition: 'all 0.15s',
+              }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 8, overflow: 'hidden', border: '2px solid var(--border)',
+                margin: '0 auto 4px', background: '#0a0a1a',
+              }}>
+                <img src={DD + '/' + c.id + '.png'} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: '#e0e0e0' }}>{c.name}</div>
+              <div style={{ fontSize: 8, color: '#888' }}>{skins.length} kostum</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedChamp && (
+        <div style={{ marginTop: 16, background: '#0d1025', border: '1px solid #c8a85e', borderRadius: 10, padding: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#c8a85e', marginBottom: 12 }}>
+            {s.champions.find((c: any) => c.id === selectedChamp)?.name} Kostumleri
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+            {getSkinsForChampion(selectedChamp).map(skin => {
+              const owned = (s.ownedSkins[selectedChamp] || []).includes(skin.num) || skin.num === 0;
+              const cost = skin.num === 0 ? 0 : (skin.num <= 5 ? 3000 : 5000);
+              const canBuy = !owned && s.blueEssence >= cost && cost > 0;
+              return (
+                <div key={skin.num} style={{
+                  borderRadius: 10, border: '1px solid ' + (owned ? '#2ecc71' : canBuy ? '#c8a85e' : 'var(--border)'),
+                  background: owned ? 'rgba(46,204,113,0.05)' : '#0a0d1a',
+                  overflow: 'hidden', opacity: owned ? 0.9 : 0.7,
+                }}>
+                  <div style={{ width: '100%', aspectRatio: '0.65', overflow: 'hidden', background: '#0a0a1a' }}>
+                    <img src={getSkinImageUrl(selectedChamp, skin.num)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => { (e.target as HTMLImageElement).src = DD + '/' + selectedChamp + '.png'; }} />
+                  </div>
+                  <div style={{ padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: '#e0e0e0' }}>{skin.name}</div>
+                    {owned ? (
+                      <div style={{ marginTop: 6, fontSize: 9, color: '#2ecc71', fontWeight: 700 }}>✓ Sahip</div>
+                    ) : cost === 0 ? (
+                      <div style={{ marginTop: 6, fontSize: 9, color: '#888' }}>Ucretsiz</div>
+                    ) : (
+                      <button onClick={() => buySkin(selectedChamp, skin.num, skin.name, cost)} disabled={!canBuy}
+                        style={{
+                          marginTop: 6, width: '100%', padding: '4px 0', borderRadius: 4, border: 'none',
+                          background: canBuy ? 'linear-gradient(135deg, #c8a85e, #a8862e)' : '#1a1a2e',
+                          color: canBuy ? '#000' : '#666', fontSize: 9, fontWeight: 600,
+                          cursor: canBuy ? 'pointer' : 'default', fontFamily: 'inherit',
+                        }}>
+                        {canBuy ? `🔵 ${cost}` : `🔒 ${cost}`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ========== STORE ========== */
 function StoreView({ s }: { s: any }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'locked' | 'owned'>('all');
-  const [storeTab, setStoreTab] = useState<'champions' | 'be'>('champions');
+  const [storeTab, setStoreTab] = useState<'champions' | 'kozmetik' | 'kostum' | 'be'>('champions');
+  const { buyCosmetic, equipCosmetic, buySkin } = useGameStore();
+  const cosmeticItems = [
+    { id: 'frame_gold', name: 'Altin Cerceve', type: 'frame', emoji: '🟡', cost: 5000, desc: 'Profiline altin cerceve' },
+    { id: 'frame_elmas', name: 'Elmas Cerceve', type: 'frame', emoji: '💎', cost: 15000, desc: 'Profiline elmas cerceve' },
+    { id: 'frame_atess', name: 'Ates Cercevesi', type: 'frame', emoji: '🔥', cost: 10000, desc: 'Profiline ates cercevesi' },
+    { id: 'icon_taht', name: 'Taht Simgesi', type: 'icon', emoji: '👑', cost: 3000, desc: 'Kraliyet simgesi' },
+    { id: 'icon_kilic', name: 'Kilic Simgesi', type: 'icon', emoji: '⚔️', cost: 3000, desc: 'Savasci simgesi' },
+    { id: 'icon_yildiz', name: 'Yildiz Simgesi', type: 'icon', emoji: '⭐', cost: 5000, desc: 'Parlayan yildiz simgesi' },
+    { id: 'bg_uzay', name: 'Uzay Temasi', type: 'background', emoji: '🌌', cost: 8000, desc: 'Uzay arka plani' },
+    { id: 'bg_yesil', name: 'Orman Temasi', type: 'background', emoji: '🌿', cost: 6000, desc: 'Orman arka plani' },
+  ];
 
   const bePackages = [
     { tl: 50, be: 650, label: 'Kucuk Paket' },
@@ -1232,6 +1803,8 @@ function StoreView({ s }: { s: any }) {
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
         {storeTabBtn('champions', 'Sampiyonlar')}
+        {storeTabBtn('kostum', 'Kostumler')}
+        {storeTabBtn('kozmetik', 'Kozmetik')}
         {storeTabBtn('be', 'Mavi Oz')}
       </div>
 
@@ -1277,6 +1850,8 @@ function StoreView({ s }: { s: any }) {
         </>
       )}
 
+      {storeTab === 'kostum' && <SkinStoreView s={s} buySkin={buySkin} />}
+
       {storeTab === 'be' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 500 }}>
           {bePackages.map(pkg => {
@@ -1294,6 +1869,49 @@ function StoreView({ s }: { s: any }) {
                 <div style={{ fontSize: 14, fontWeight: 'bold', color: canBuy ? '#ffd93d' : 'var(--text-secondary)' }}>
                   {pkg.tl} TL
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {storeTab === 'kozmetik' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+          {cosmeticItems.map((item: any) => {
+            const owned = s.cosmetics.some((c: any) => c.id === item.id && c.owned);
+            const equipped = owned && s.cosmetics.find((c: any) => c.id === item.id)?.equipped;
+            const canBuy = !owned && s.blueEssence >= item.cost;
+            const typeLab = item.type === 'frame' ? '🖼️ Cerceve' : item.type === 'icon' ? '🪪 Simge' : '🎨 Arkaplan';
+            return (
+              <div key={item.id} style={{
+                padding: 14, borderRadius: 10, border: '2px solid ' + (equipped ? '#2ecc71' : owned ? '#4fc3f7' : 'var(--border)'),
+                background: equipped ? 'rgba(46,204,113,0.06)' : owned ? 'rgba(79,195,247,0.04)' : '#0d1025',
+                opacity: owned && !canBuy ? 0.7 : 1,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 28 }}>{item.emoji}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#e0e0e0' }}>{item.name}</div>
+                    <div style={{ fontSize: 9, color: '#888' }}>{typeLab}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 10 }}>{item.desc}</div>
+                {equipped ? (
+                  <button onClick={() => equipCosmetic(item.id)}
+                    style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: '1px solid #2ecc71', background: 'rgba(46,204,113,0.1)', color: '#2ecc71', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✓ Kusanildi (Cikar)
+                  </button>
+                ) : owned ? (
+                  <button onClick={() => equipCosmetic(item.id)}
+                    style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: 'none', background: 'linear-gradient(135deg, #4fc3f7, #2980b9)', color: '#fff', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    🎯 Kusan
+                  </button>
+                ) : (
+                  <button onClick={() => canBuy && buyCosmetic(item.id)} disabled={!canBuy}
+                    style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: 'none', background: canBuy ? 'linear-gradient(135deg, #c8a85e, #a8862e)' : '#2a2a4a', color: canBuy ? '#000' : '#666', fontSize: 10, fontWeight: 600, cursor: canBuy ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+                    {canBuy ? `🔵 ${item.cost} BE` : `🔒 ${item.cost} BE`}
+                  </button>
+                )}
               </div>
             );
           })}

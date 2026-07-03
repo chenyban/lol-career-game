@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { PlayerProfile, PlayerStats, MatchEvent, TeamOffer, Message, RankTier, MatchResult, MatchKDA, KDADelta, SummonerSpell, RunePage, MatchDetailedStats, ObjectiveEvent, Achievement, SeasonModifier, MatchItemBuild, Tournament, DailyQuest, Sponsorship, TeamContract, LootBox, SeasonReward, ChampionAbility, CareerStats, Clan, Coach, Cosmetic, SaveSlot } from '../types';
+import type { PlayerProfile, PlayerStats, MatchEvent, TeamOffer, Message, RankTier, MatchResult, MatchKDA, KDADelta, SummonerSpell, RunePage, MatchDetailedStats, ObjectiveEvent, Achievement, SeasonModifier, MatchItemBuild, Tournament, DailyQuest, Sponsorship, TeamContract, LootBox, SeasonReward, ChampionAbility, CareerStats, Clan, Coach, Cosmetic, SaveSlot, SeasonHistoryEntry, RankInfo, Friend, BotPlayer, MatchLaneChampion } from '../types';
+import type { Champion } from '../types';
 import { allChampions } from '../data/champions';
 import { rankedTiers, xpToLevel, calculatePlacementRank, getDivisionForLp, getTierIndex } from '../data/ranks';
 import { availableJobs } from '../data/jobs';
@@ -36,27 +37,91 @@ const chatContacts = [
   { name: 'Cem', avatar: 'C' },
 ];
 
-const chatTemplates = [
-  'Bugun mac var mi?',
-  'Gecen oyundaki playin efsaneydi kanka!',
-  'Yeni yama cok kotu olmus ya.',
-  'Aksam giricek misin?',
-  'Su baru acmaya calisalim mi?',
-  'Ranked kasmaya basladim, sen ne durumdasin?',
-  'Hangi sampiyonu mainliyorsun su ara?',
-  'Takimima gelir misin?',
-  'Turk sunucusunda ping cok kotu ya.',
-  'Derecelide elmasa ciktim sonunda!',
-  'SamPiYon haVUZuNa bAKTiN mI?',
-  'Mid gidebilir misin bu sefer?',
-  'Support main misin?',
-  'Clash turnuvasina katilalim mi?',
-  'Haftasonu turnuvasi var, takim ariyorum.',
-  'Kanka soloq cok toxic ya FF atip cikiyorum.',
-  'ADC olarak cok iyi oynuyorsun bu arada.',
-  'Jungler olarak cok iyisin, respect.',
-  'Sana build onerim var, DM\'den atayim mi?',
-  'Bu aksam custom mac yapalim mi bizim ekip ile?',
+const chatConversations = [
+  {
+    text: 'Bugun mac var mi?',
+    options: [
+      { id: 'pos', text: 'Var, birazdan giricem! Sen de gel istersen?', type: 'positive' as const, response: 'Harika! Ben de giriyorum, gorunce lobbye davet ederim.', statEffect: { stat: 'takimUyumu' as const, value: 2 } },
+      { id: 'neg', text: 'Yok bugun musait degilim.', type: 'negative' as const, response: 'Anladim, baska zamana o zaman. Iyi aksamlar!', statEffect: { stat: 'mentalGuc' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'Kanka soloq cok toxic ya, FF atip cikicam.',
+    options: [
+      { id: 'pos', text: 'Bosver kanka, bi mac daha dene. Mentalini bozma!', type: 'positive' as const, response: 'Haklisin ya, sag ol moral verdin. Devam edicem.', statEffect: { stat: 'mentalGuc' as const, value: 3 } },
+      { id: 'neg', text: 'Kotu oynuyorsan normaldir, birak oyunu.', type: 'negative' as const, response: 'Vay be destek olacagina koyuyorsun. Neyse...', statEffect: { stat: 'takimUyumu' as const, value: -2 } },
+    ],
+  },
+  {
+    text: 'Yeni yama cok kotu olmus ya, oynanmiyor.',
+    options: [
+      { id: 'pos', text: 'Alismak lazim, meta degisiyor surekli.', type: 'positive' as const, response: 'Dogru diyorsun. Bir kac mac atip gorelim bakalim.', statEffect: { stat: 'oyunBilgisi' as const, value: 2 } },
+      { id: 'neg', text: 'Evet ya, Riot gene sacmaladi.', type: 'negative' as const, response: 'Aynen oyle. Neyse biraz ara verelim en iyisi.', statEffect: { stat: 'mentalGuc' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'Derecelide elmasa ciktim sonunda!',
+    options: [
+      { id: 'pos', text: 'Tebrikler kanka! Cok iyi basari!', type: 'positive' as const, response: 'Tesekkurler! Umarim sen de yakinda cikarsin.', statEffect: { stat: 'mentalGuc' as const, value: 2 } },
+      { id: 'neg', text: 'Ben daha gumusteyim...', type: 'negative' as const, response: 'Olsun, zamanla olur. Stres yapma.', statEffect: { stat: 'mentalGuc' as const, value: 0 } },
+    ],
+  },
+  {
+    text: 'Aksam custom mac yapalim mi bizim ekip ile?',
+    options: [
+      { id: 'pos', text: 'Olur, kac gibi basliyoruz?', type: 'positive' as const, response: '9 gibi toplanalim. 5v5 yapariz, eglenceli olur.', statEffect: { stat: 'takimUyumu' as const, value: 3 } },
+      { id: 'neg', text: 'Custom mac cok sarmiyor bana ya.', type: 'negative' as const, response: 'Anladim, baska zaman rank atariz o zaman.', statEffect: { stat: 'takimUyumu' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'Sana build onerim var, DMden atayim mi?',
+    options: [
+      { id: 'pos', text: 'Olur at, merak ettim.', type: 'positive' as const, response: 'Gonderdim! Bu build ile winrateim %70\'e cikti.', statEffect: { stat: 'oyunBilgisi' as const, value: 3 } },
+      { id: 'neg', text: 'Kendi buildim var, gerek yok sag ol.', type: 'negative' as const, response: 'Tamamdir, sen bilirsin. Iyi oyunlar.', statEffect: { stat: 'oyunBilgisi' as const, value: 0 } },
+    ],
+  },
+  {
+    text: 'Bugun kostum resmen, 5 mac ust uste win!',
+    options: [
+      { id: 'pos', text: 'Adamsin! Formun zirvesinde.', type: 'positive' as const, response: 'Eyw kanki! Sende girersen beraber kasmaya devam.', statEffect: { stat: 'mekanik' as const, value: 2 } },
+      { id: 'neg', text: 'Ben kaybediyorum surekli... Sans isi.', type: 'negative' as const, response: 'Herkesin kotu gunu olur. Yarinki maclar senin olur.', statEffect: { stat: 'mentalGuc' as const, value: 1 } },
+    ],
+  },
+  {
+    text: 'Hangi sampiyonu mainliyorsun su ara?',
+    options: [
+      { id: 'pos', text: 'Su aralar cok cesitli oynuyorum, metaya gore.', type: 'positive' as const, response: 'Iyi taktik. Ben de oyle yapmaya calisiyorum.', statEffect: { stat: 'oyunBilgisi' as const, value: 1 } },
+      { id: 'neg', text: 'Tek bir sampiyon oynuyorum, digerlerini bilmiyorum.', type: 'negative' as const, response: 'Hmm, biraz cesitlendirmek lazim ama. Neyse.', statEffect: { stat: 'oyunBilgisi' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'Clash turnuvasina katilalim mi bu hafta?',
+    options: [
+      { id: 'pos', text: 'Kesinlikle! Takimi topla, ben varim.', type: 'positive' as const, response: 'Super! 5 kisi tamamlayinca kayit yaptiralim.', statEffect: { stat: 'takimUyumu' as const, value: 3 } },
+      { id: 'neg', text: 'Clash cok zaman aliyor, giremem.', type: 'negative' as const, response: 'Anladim, baska sefere artik.', statEffect: { stat: 'takimUyumu' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'Gece boyu rank kasiyorum, sen de gel hadi!',
+    options: [
+      { id: 'pos', text: 'Tamam, gece vardiyasi baslasin!', type: 'positive' as const, response: 'Iste budur! Gecenin korunde challenger olacagiz.', statEffect: { stat: 'mentalGuc' as const, value: 2 } },
+      { id: 'neg', text: 'Geceleri oynayamiyorum, uykum geliyor.', type: 'negative' as const, response: 'Anladim kanki, sen bilirsin. Ben devam.', statEffect: { stat: 'mentalGuc' as const, value: -1 } },
+    ],
+  },
+  {
+    text: 'ADC olarak cok iyi oynuyorsun bu arada.',
+    options: [
+      { id: 'pos', text: 'Tesekkur ederim! Sen de cok iyisin.', type: 'positive' as const, response: 'Sag ol, beraber bot lane cok iyi olurdu.', statEffect: { stat: 'mekanik' as const, value: 2 } },
+      { id: 'neg', text: 'Bugun berbatti performansim aslinda.', type: 'negative' as const, response: 'Olsun, her gun ayni olmaz. Toparlarsin.', statEffect: { stat: 'mentalGuc' as const, value: 1 } },
+    ],
+  },
+  {
+    text: 'Mid koridorda yeni bir sampiyon deniyorum, cok eglenceli.',
+    options: [
+      { id: 'pos', text: 'Hangi sampiyon? Ben de denemek isterim.', type: 'positive' as const, response: 'Yone, cok guclu olmus. Kesinlikle dene.', statEffect: { stat: 'oyunBilgisi' as const, value: 2 } },
+      { id: 'neg', text: 'Yeni sampiyonlar cok broken oluyor.', type: 'negative' as const, response: 'Ya oyle deme, bazen guzel oluyorlar.', statEffect: { stat: 'oyunBilgisi' as const, value: -1 } },
+    ],
+  },
 ];
 
 export const summonerSpells: SummonerSpell[] = [
@@ -130,6 +195,17 @@ export const matchComponents: { id: string; name: string; cost: number; emoji: s
   { id: 'doransBlade', name: "Doran's Blade", cost: 450, emoji: '🗡️', statBonus: { mekanik: 2, mentalGuc: 1 }, category: 'AD', description: '+2 Mekanik +1 Mental' },
   { id: 'doransRing', name: "Doran's Ring", cost: 400, emoji: '💍', statBonus: { oyunBilgisi: 2, mentalGuc: 1 }, category: 'AP', description: '+2 OB +1 Mental' },
   { id: 'doransShield', name: "Doran's Shield", cost: 450, emoji: '🛡️', statBonus: { mentalGuc: 2, mekanik: 1 }, category: 'Tank', description: '+2 Mental +1 Mekanik' },
+  { id: 'lastWhisper', name: 'Last Whisper', cost: 900, emoji: '🏹', statBonus: { mekanik: 3, oyunBilgisi: 1 }, category: 'AD', description: '+3 Mek +1 OB Pen' },
+  { id: 'hexdrinker', name: 'Hexdrinker', cost: 900, emoji: '🪬', statBonus: { mekanik: 2, mentalGuc: 3 }, category: 'AD', description: '+2 Mek +3 Mental Kalkan' },
+  { id: 'serrated', name: 'Serrated Dirk', cost: 700, emoji: '🗡️', statBonus: { mekanik: 2 }, category: 'AD', description: '+2 Mek Lethality' },
+  { id: 'tear', name: 'Tear of the Goddess', cost: 400, emoji: '💧', statBonus: { oyunBilgisi: 1, mentalGuc: 1 }, category: 'AP', description: '+1 OB +1 Mental Mana' },
+  { id: 'cull', name: 'Cull', cost: 450, emoji: '⚔️', statBonus: { mekanik: 1, oyunBilgisi: 1 }, category: 'AD', description: '+1 Mek +1 OB Farm' },
+  { id: 'darkSeal', name: 'Dark Seal', cost: 350, emoji: '📘', statBonus: { oyunBilgisi: 2, mentalGuc: 1 }, category: 'AP', description: '+2 OB +1 Mental Glory' },
+  { id: 'noonquiver', name: 'Noonquiver', cost: 700, emoji: '🏹', statBonus: { mekanik: 2, oyunBilgisi: 1 }, category: 'AD', description: '+2 Mek +1 OB Minion' },
+  { id: 'healthPot', name: 'Health Potion', cost: 50, emoji: '🧪', statBonus: { mentalGuc: 0.5 }, category: 'Utility', description: 'Can yeniler' },
+  { id: 'oracleLens', name: 'Oracle Lens', cost: 0, emoji: '🔴', statBonus: { oyunBilgisi: 0.001 }, category: 'Utility', description: 'Gorunmezleri gorur' },
+  { id: 'elixirIron', name: 'Elixir of Iron', cost: 500, emoji: '⚗️', statBonus: { mentalGuc: 3, takimUyumu: 2 }, category: 'Utility', description: '+3 Mental +2 Takim Gecici' },
+  { id: 'elixirSorcery', name: 'Elixir of Sorcery', cost: 500, emoji: '🔮', statBonus: { oyunBilgisi: 4, mekanik: 1 }, category: 'AP', description: '+4 OB +1 Mek Gecici' },
 ];
 
 export const matchCompletedItems: { id: string; name: string; components: string[]; cost: number; emoji: string; statBonus: Partial<PlayerStats>; description: string; category: string }[] = [
@@ -145,6 +221,55 @@ export const matchCompletedItems: { id: string; name: string; components: string
   { id: 'deadMansPlate', name: "Dead Man's Plate", components: ['chainVest', 'giantsBelt', 'clothArmor'], cost: 500, emoji: '⚰️', statBonus: { mentalGuc: 9, mekanik: 3 }, description: '+9 Mental +3 Mekanik', category: 'Tank' },
   { id: 'warmog', name: "Warmog's Armor", components: ['giantsBelt', 'giantsBelt', 'kindlegem'], cost: 600, emoji: '❤️', statBonus: { mentalGuc: 14, takimUyumu: 2 }, description: '+14 Mental +2 Takim', category: 'Tank' },
   { id: 'guardianAngel', name: 'Guardian Angel', components: ['bfSword', 'chainVest', 'stopwatch'], cost: 500, emoji: '👼', statBonus: { mekanik: 5, mentalGuc: 5 }, description: '+5 Mekanik +5 Mental', category: 'AD' },
+  { id: 'collector', name: 'Collector', components: ['bfSword', 'dagger', 'dagger'], cost: 400, emoji: '💸', statBonus: { mekanik: 8, oyunBilgisi: 3 }, description: '+8 Mek +3 OB Execute', category: 'AD' },
+  { id: 'shieldbow', name: 'Immortal Shieldbow', components: ['pickaxe', 'clothArmor', 'longSword'], cost: 450, emoji: '💚', statBonus: { mekanik: 6, mentalGuc: 5 }, description: '+6 Mek +5 Mental Kalkan', category: 'AD' },
+  { id: 'mortalReminder', name: 'Mortal Reminder', components: ['lastWhisper', 'dagger'], cost: 350, emoji: '⚰️', statBonus: { mekanik: 7, oyunBilgisi: 2 }, description: '+7 Mek +2 OB Anti-Heal', category: 'AD' },
+  { id: 'phantomDancer', name: 'Phantom Dancer', components: ['recurveBow', 'dagger'], cost: 350, emoji: '👻', statBonus: { mekanik: 6, mentalGuc: 3 }, description: '+6 Mek +3 Mental AS', category: 'AD' },
+  { id: 'bork', name: 'Blade of the Ruined King', components: ['recurveBow', 'pickaxe', 'dagger'], cost: 550, emoji: '🗡️', statBonus: { mekanik: 7, oyunBilgisi: 4 }, description: '+7 Mek +4 OB %HP', category: 'AD' },
+  { id: 'essenceReaver', name: 'Essence Reaver', components: ['caulfield', 'bfSword'], cost: 300, emoji: '💎', statBonus: { mekanik: 8, oyunBilgisi: 2 }, description: '+8 Mek +2 OB Mana', category: 'AD' },
+  { id: 'rfc', name: 'Rapid Firecannon', components: ['recurveBow', 'dagger', 'longSword'], cost: 450, emoji: '🏹', statBonus: { mekanik: 6, oyunBilgisi: 3 }, description: '+6 Mek +3 OB Menzil', category: 'AD' },
+  { id: 'navori', name: 'Navori Flickerblade', components: ['caulfield', 'bfSword'], cost: 400, emoji: '⚡', statBonus: { mekanik: 9, mentalGuc: 2 }, description: '+9 Mek +2 Mental CD', category: 'AD' },
+  { id: 'trinityForce', name: 'Trinity Force', components: ['caulfield', 'kindlegem', 'longSword'], cost: 500, emoji: '🔱', statBonus: { mekanik: 6, takimUyumu: 5 }, description: '+6 Mek +5 Takim Sheen', category: 'AD' },
+  { id: 'hexplate', name: 'Experimental Hexplate', components: ['pickaxe', 'kindlegem'], cost: 350, emoji: '🧪', statBonus: { mekanik: 5, mentalGuc: 3 }, description: '+5 Mek +3 Mental Ulti', category: 'AD' },
+  { id: 'duskblade', name: 'Duskblade', components: ['caulfield', 'longSword'], cost: 300, emoji: '🌑', statBonus: { mekanik: 8, mentalGuc: 1 }, description: '+8 Mek +1 Mental Stealth', category: 'AD' },
+  { id: 'youmuu', name: "Youmuu's Ghostblade", components: ['caulfield', 'dagger'], cost: 300, emoji: '👻', statBonus: { mekanik: 7, takimUyumu: 2 }, description: '+7 Mek +2 Takim Hiz', category: 'AD' },
+  { id: 'eclipse', name: 'Eclipse', components: ['caulfield', 'pickaxe'], cost: 350, emoji: '🌑', statBonus: { mekanik: 7, mentalGuc: 3 }, description: '+7 Mek +3 Mental Kalkan', category: 'AD' },
+  { id: 'hydra', name: 'Ravenous Hydra', components: ['pickaxe', 'caulfield', 'longSword'], cost: 600, emoji: '🪓', statBonus: { mekanik: 9, oyunBilgisi: 3 }, description: '+9 Mek +3 OB Cleave', category: 'AD' },
+  { id: 'deathDance', name: "Death's Dance", components: ['caulfield', 'chainVest'], cost: 350, emoji: '💀', statBonus: { mekanik: 6, mentalGuc: 4 }, description: '+6 Mek +4 Mental Bleed', category: 'AD' },
+  { id: 'maw', name: 'Maw of Malmortius', components: ['caulfield', 'nullMantle'], cost: 350, emoji: '🛡️', statBonus: { mekanik: 5, mentalGuc: 5 }, description: '+5 Mek +5 Mental MR', category: 'AD' },
+  // AP Items
+  { id: 'shadowflame', name: 'Shadowflame', components: ['needless', 'fiendish'], cost: 500, emoji: '🔥', statBonus: { oyunBilgisi: 12, mekanik: 2 }, description: '+12 OB +2 Mek Pen', category: 'AP' },
+  { id: 'liandry', name: "Liandry's Torment", components: ['blastingWand', 'rubyCrystal'], cost: 400, emoji: '😈', statBonus: { oyunBilgisi: 10, mentalGuc: 3 }, description: '+10 OB +3 Mental Burn', category: 'AP' },
+  { id: 'morello', name: 'Morellonomicon', components: ['blastingWand', 'ampTome', 'rubyCrystal'], cost: 500, emoji: '📗', statBonus: { oyunBilgisi: 10, takimUyumu: 2 }, description: '+10 OB +2 Takim GW', category: 'AP' },
+  { id: 'rylai', name: "Rylai's Crystal Scepter", components: ['blastingWand', 'rubyCrystal'], cost: 300, emoji: '❄️', statBonus: { oyunBilgisi: 8, mentalGuc: 2 }, description: '+8 OB +2 Mental Slow', category: 'AP' },
+  { id: 'cosmicDrive', name: 'Cosmic Drive', components: ['fiendish', 'ampTome'], cost: 350, emoji: '🌌', statBonus: { oyunBilgisi: 9, mekanik: 3 }, description: '+9 OB +3 Mek Hiz', category: 'AP' },
+  { id: 'banshee', name: "Banshee's Veil", components: ['needless', 'nullMantle'], cost: 400, emoji: '🪬', statBonus: { oyunBilgisi: 8, mentalGuc: 4 }, description: '+8 OB +4 Mental SpellShield', category: 'AP' },
+  { id: 'horizonFocus', name: 'Horizon Focus', components: ['needless', 'fiendish'], cost: 400, emoji: '🔭', statBonus: { oyunBilgisi: 10, mentalGuc: 2 }, description: '+10 OB +2 Mental Vision', category: 'AP' },
+  { id: 'archangel', name: "Archangel's Staff", components: ['lostChapter', 'ampTome', 'rubyCrystal'], cost: 500, emoji: '📖', statBonus: { oyunBilgisi: 12, mentalGuc: 3 }, description: '+12 OB +3 Mental Mana', category: 'AP' },
+  { id: 'lichBane', name: 'Lich Bane', components: ['fiendish', 'ampTome'], cost: 400, emoji: '💫', statBonus: { oyunBilgisi: 8, mekanik: 4 }, description: '+8 OB +4 Mek Sheen', category: 'AP' },
+  { id: 'nashor', name: "Nashor's Tooth", components: ['recurveBow', 'fiendish'], cost: 300, emoji: '🦷', statBonus: { oyunBilgisi: 7, mekanik: 4 }, description: '+7 OB +4 Mek AS', category: 'AP' },
+  { id: 'riftmaker', name: 'Riftmaker', components: ['blastingWand', 'rubyCrystal'], cost: 350, emoji: '🌀', statBonus: { oyunBilgisi: 8, mentalGuc: 4 }, description: '+8 OB +4 Mental Omnivamp', category: 'AP' },
+  { id: 'malignance', name: 'Malignance', components: ['lostChapter', 'blastingWand'], cost: 400, emoji: '⚡', statBonus: { oyunBilgisi: 10, mekanik: 2 }, description: '+10 OB +2 Mek Ult Pen', category: 'AP' },
+  { id: 'rodOfAges', name: 'Rod of Ages', components: ['blastingWand', 'rubyCrystal'], cost: 350, emoji: '⏳', statBonus: { oyunBilgisi: 7, mentalGuc: 5 }, description: '+7 OB +5 Mental Scales', category: 'AP' },
+  // Tank Items
+  { id: 'randuin', name: "Randuin's Omen", components: ['chainVest', 'rubyCrystal'], cost: 300, emoji: '🧊', statBonus: { mentalGuc: 8, takimUyumu: 3 }, description: '+8 Mental +3 Takim ASlow', category: 'Tank' },
+  { id: 'frozenHeart', name: 'Frozen Heart', components: ['chainVest', 'clothArmor'], cost: 350, emoji: '❄️', statBonus: { mentalGuc: 9, takimUyumu: 2 }, description: '+9 Mental +2 Takim Aura', category: 'Tank' },
+  { id: 'forceOfNature', name: 'Force of Nature', components: ['nullMantle', 'rubyCrystal'], cost: 350, emoji: '🌿', statBonus: { mentalGuc: 8, mekanik: 3 }, description: '+8 Mental +3 Mek MR Stack', category: 'Tank' },
+  { id: 'jaksho', name: "Jak'Sho the Protean", components: ['chainVest', 'nullMantle', 'rubyCrystal'], cost: 600, emoji: '🐉', statBonus: { mentalGuc: 12, takimUyumu: 3 }, description: '+12 Mental +3 Takim Drain', category: 'Tank' },
+  { id: 'heartsteel', name: 'Heartsteel', components: ['giantsBelt', 'rubyCrystal'], cost: 400, emoji: '❤️', statBonus: { mentalGuc: 10, mekanik: 4 }, description: '+10 Mental +4 Mek Bonk', category: 'Tank' },
+  { id: 'sunfire', name: 'Sunfire Aegis', components: ['chainVest', 'rubyCrystal'], cost: 350, emoji: '☀️', statBonus: { mentalGuc: 7, mekanik: 3 }, description: '+7 Mental +3 Mek Aura', category: 'Tank' },
+  { id: 'iceborn', name: 'Iceborn Gauntlet', components: ['chainVest', 'clothArmor', 'kindlegem'], cost: 500, emoji: '🧤', statBonus: { mentalGuc: 7, takimUyumu: 4 }, description: '+7 Mental +4 Takim Sheen', category: 'Tank' },
+  // Support / Utility Items
+  { id: 'locket', name: 'Locket of the Iron Solari', components: ['kindlegem', 'clothArmor'], cost: 350, emoji: '🛡️', statBonus: { mentalGuc: 5, takimUyumu: 6 }, description: '+5 Mental +6 Takim Shield', category: 'Support' },
+  { id: 'redemption', name: 'Redemption', components: ['kindlegem', 'ampTome'], cost: 300, emoji: '✝️', statBonus: { takimUyumu: 8, mentalGuc: 3 }, description: '+8 Takim +3 Mental Heal', category: 'Support' },
+  { id: 'knightsVow', name: "Knight's Vow", components: ['kindlegem', 'clothArmor'], cost: 250, emoji: '🤝', statBonus: { mentalGuc: 4, takimUyumu: 5 }, description: '+4 Mental +5 Takim Redirect', category: 'Support' },
+  { id: 'ardent', name: 'Ardent Censer', components: ['fiendish', 'ampTome'], cost: 300, emoji: '🔥', statBonus: { takimUyumu: 6, mekanik: 4 }, description: '+6 Takim +4 Mek Buff', category: 'Support' },
+  { id: 'zeke', name: "Zeke's Convergence", components: ['kindlegem', 'clothArmor'], cost: 300, emoji: '⛓️', statBonus: { takimUyumu: 7, mentalGuc: 3 }, description: '+7 Takim +3 Mental Storm', category: 'Support' },
+  { id: 'moonstone', name: 'Moonstone Renewer', components: ['kindlegem', 'fiendish'], cost: 300, emoji: '🌙', statBonus: { takimUyumu: 7, oyunBilgisi: 3 }, description: '+7 Takim +3 OB Heals', category: 'Support' },
+  // Boot upgrades (require boots to build)
+  { id: 'swifties', name: 'Boots of Swiftness', components: ['boots'], cost: 600, emoji: '👟', statBonus: { mekanik: 2, mentalGuc: 2 }, description: '+2 Mek +2 Mental SlowDirenci', category: 'Boots' },
+  { id: 'mobiBoots', name: 'Mobility Boots', components: ['boots'], cost: 600, emoji: '🥾', statBonus: { mekanik: 3, oyunBilgisi: 1 }, description: '+3 Mek +1 OB Hizli', category: 'Boots' },
+  { id: 'ionianBoots', name: 'Ionian Boots of Lucidity', components: ['boots'], cost: 600, emoji: '👢', statBonus: { oyunBilgisi: 3, mekanik: 1 }, description: '+3 OB +1 Mek CDR', category: 'Boots' },
 ];
 
 // Get all buyable items (components + boots that are upgrades)
@@ -154,6 +279,117 @@ export function getAllShopItems(bootsOwned: boolean) {
     return true;
   });
   return [...comps, ...matchCompletedItems];
+}
+
+function generateBotPlayers(playerChampionId: string, playerKDA: MatchKDA, _playerWon: boolean, playerLevel: number, playerName: string, playerRank: RankTier, unlockedChampions: Champion[]): BotPlayer[] {
+  const botNames = [
+    'xXShadowXx', 'YasuoMain', 'NightWolfTR', 'ZedGod', 'SoloCarry',
+    'DiamondSoul', 'RivenOnly', 'BladeStorm', 'EzrealPenta', 'KatarinaGod',
+    'FakerFanboy', 'JungleDiff', 'Tyler1Fan', 'OneTapKing', 'DarkPhoenix',
+    'ProGamer99', 'KebabMaster', 'HextechKing', 'VoidWalker', 'StarGuardian',
+    'DeathMark', 'DragonSlayer', 'MysticMage', 'IronGolem', 'PhantomBlade',
+    'ThreshPrince', 'LuxMain', 'TeemoGod', 'MasterYi', 'LeeSinGod',
+  ];
+  const ranks: RankTier[] = ['demir', 'bronz', 'gumus', 'altin', 'platin', 'zumrut', 'elmas'];
+  const allChamps = unlockedChampions.length > 0 ? unlockedChampions : allChampions;
+  const shuffledNames = [...botNames].sort(() => Math.random() - 0.5);
+  const players: BotPlayer[] = [];
+
+  for (let i = 0; i < 9; i++) {
+    const isBlueTeam = i < 4;
+    const team: 'blue' | 'red' = isBlueTeam ? 'blue' : 'red';
+    const c = allChamps[Math.floor(Math.random() * allChamps.length)];
+    const rank = ranks[Math.min(ranks.length - 1, Math.floor(Math.random() * (Math.min(6, Math.floor(playerLevel / 5) + 3))))];
+    const lvl = playerLevel + Math.floor(Math.random() * 20) - 10;
+    players.push({
+      name: shuffledNames[i] || 'Bot_' + i,
+      level: Math.max(1, lvl),
+      rank,
+      championId: c.id,
+      kda: { kills: Math.floor(Math.random() * 12), deaths: Math.floor(Math.random() * 10), assists: Math.floor(Math.random() * 15) },
+      team,
+    });
+  }
+  players.push({
+    name: playerName,
+    level: playerLevel,
+    rank: playerRank,
+    championId: playerChampionId,
+    kda: playerKDA,
+    team: 'blue',
+    isPlayer: true,
+  });
+  return players;
+}
+
+function applyPatchToChampions(playCounts: Record<string, number>, currentModifiers: Record<string, number>, seasonNum: number): Record<string, number> {
+  const modifiers = { ...currentModifiers };
+  const allChampIds = allChampions.map(c => c.id);
+  
+  // Initialize neutral modifiers for new champions
+  allChampIds.forEach(id => { if (!(id in modifiers)) modifiers[id] = 0; });
+  
+  // Find play counts for sorting
+  const withPlays = allChampIds.map(id => ({ id, plays: playCounts[id] || 0 })).sort((a, b) => b.plays - a.plays);
+  const playedCount = withPlays.filter(c => c.plays > 0).length;
+  
+  if (playedCount < 5) {
+    // Not enough data, small random adjustments
+    allChampIds.forEach(id => { modifiers[id] = Math.max(-0.05, Math.min(0.05, modifiers[id] + (Math.random() * 0.03 - 0.015))); });
+    return modifiers;
+  }
+  
+  // Top 25% most played → nerf
+  const nerfCount = Math.max(5, Math.floor(playedCount * 0.25));
+  for (let i = 0; i < nerfCount; i++) {
+    const id = withPlays[i].id;
+    const nerf = 0.02 + Math.random() * 0.04;
+    modifiers[id] = Math.max(-0.08, modifiers[id] - nerf);
+  }
+  
+  // Bottom 25% least played → buff
+  const buffCount = Math.max(5, Math.floor(playedCount * 0.25));
+  for (let i = 0; i < buffCount; i++) {
+    const idx = withPlays.length - 1 - i;
+    if (idx < 0) break;
+    const id = withPlays[idx].id;
+    const buff = 0.02 + Math.random() * 0.04;
+    modifiers[id] = Math.min(0.08, modifiers[id] + buff);
+  }
+  
+  // Middle champs → slight random variance
+  for (let i = nerfCount; i < withPlays.length - buffCount; i++) {
+    if (i < 0 || i >= withPlays.length) continue;
+    const id = withPlays[i].id;
+    modifiers[id] = Math.max(-0.05, Math.min(0.05, modifiers[id] + (Math.random() * 0.02 - 0.01)));
+  }
+  
+  // Unplayed champions get small buffs
+  withPlays.filter(c => c.plays === 0).forEach(c => {
+    modifiers[c.id] = Math.min(0.06, modifiers[c.id] + (Math.random() * 0.04));
+  });
+  
+  return modifiers;
+}
+
+function generateLaneChampions(playerName: string, playerChampionId: string, unlockedChampions: Champion[]): MatchLaneChampion[] {
+  const lanes: { lane: MatchLaneChampion['lane']; display: string }[] = [
+    { lane: 'top', display: 'Ust' }, { lane: 'jungle', display: 'Orman' },
+    { lane: 'mid', display: 'Orta' }, { lane: 'bot', display: 'ADC' }, { lane: 'support', display: 'Destek' },
+  ];
+  const botNames = ['ProGamer99', 'xXShadowXx', 'DarkPhoenix', 'NightWolf', 'SoloCarry', 'YasuoMain', 'ZedGod', 'KebabMaster', 'DragonSlay', 'OneTapKing'];
+  const champs = unlockedChampions.length > 0 ? unlockedChampions : allChampions;
+  const result: MatchLaneChampion[] = [];
+  // Blue team (player is top)
+  result.push({ name: playerName, championId: champs[0]?.id || 'Aatrox', team: 'blue', lane: 'top', alive: true, deaths: 0 });
+  for (let i = 1; i < 5; i++) {
+    result.push({ name: botNames[i - 1], championId: champs[Math.floor(Math.random() * champs.length)]?.id || 'Aatrox', team: 'blue', lane: lanes[i].lane, alive: true, deaths: 0 });
+  }
+  // Red team
+  for (let i = 0; i < 5; i++) {
+    result.push({ name: botNames[i + 5], championId: (allChampions as Champion[])[Math.floor(Math.random() * allChampions.length)].id, team: 'red', lane: lanes[i].lane, alive: true, deaths: 0 });
+  }
+  return result;
 }
 
 export function canCombine(items: string[]): string | null {
@@ -248,11 +484,40 @@ export const seasonRewardsList: SeasonReward[] = [
 // === CHAMPION ABILITIES ===
 export function getChampionAbilities(championId: string) {
   const roleMap: Record<string, string> = {
-    Akshan: 'ADC', Amumu: 'Tank', Braum: 'Support', Briar: 'Fighter', Darius: 'Fighter',
-    Fiora: 'Fighter', Graves: 'ADC', Malphite: 'Tank', Maokai: 'Tank', MissFortune: 'ADC',
-    Morgana: 'Mage', Naafiri: 'Assassin', Olaf: 'Fighter', RekSai: 'Fighter', Rell: 'Tank',
-    Renekton: 'Fighter', Seraphine: 'Mage', Soraka: 'Support', Taric: 'Support', Vex: 'Mage',
-    Varus: 'ADC', Yuumi: 'Support', default: 'Fighter',
+    Aatrox: 'Fighter', Ahri: 'Mage', Akali: 'Assassin', Akshan: 'ADC', Alistar: 'Tank',
+    Amumu: 'Tank', Anivia: 'Mage', Annie: 'Mage', Aphelios: 'ADC', Ashe: 'ADC',
+    AurelionSol: 'Mage', Azir: 'Mage', Bard: 'Support', Belveth: 'Fighter', Blitzcrank: 'Tank',
+    Brand: 'Mage', Braum: 'Support', Briar: 'Fighter', Caitlyn: 'ADC', Camille: 'Fighter',
+    Cassiopeia: 'Mage', Chogath: 'Tank', Corki: 'ADC', Darius: 'Fighter', Diana: 'Fighter',
+    Draven: 'ADC', DrMundo: 'Tank', Ekko: 'Assassin', Elise: 'Assassin', Evelynn: 'Assassin',
+    Ezreal: 'ADC', Fiddlesticks: 'Mage', Fiora: 'Fighter', Fizz: 'Assassin', Galio: 'Tank',
+    Gangplank: 'Fighter', Garen: 'Fighter', Gnar: 'Fighter', Gragas: 'Fighter', Graves: 'ADC',
+    Gwen: 'Fighter', Hecarim: 'Fighter', Heimerdinger: 'Mage', Illaoi: 'Fighter', Irelia: 'Fighter',
+    Ivern: 'Support', Janna: 'Support', JarvanIV: 'Fighter', Jax: 'Fighter', Jayce: 'Fighter',
+    Jhin: 'ADC', Jinx: 'ADC', Kaisa: 'ADC', Kalista: 'ADC', Karma: 'Support',
+    Karthus: 'Mage', Kassadin: 'Assassin', Katarina: 'Assassin', Kayle: 'Fighter', Kayn: 'Assassin',
+    Kennen: 'Mage', Khazix: 'Assassin', Kindred: 'ADC', Kled: 'Fighter', KogMaw: 'ADC',
+    Leblanc: 'Assassin', LeeSin: 'Fighter', Leona: 'Tank', Lillia: 'Mage', Lissandra: 'Mage',
+    Lucian: 'ADC', Lulu: 'Support', Lux: 'Mage', Malphite: 'Tank', Malzahar: 'Mage',
+    Maokai: 'Tank', MasterYi: 'Assassin', Milio: 'Support', MissFortune: 'ADC', Mordekaiser: 'Fighter',
+    Morgana: 'Mage', Naafiri: 'Assassin', Nami: 'Support', Nasus: 'Fighter', Nautilus: 'Tank',
+    Neeko: 'Mage', Nidalee: 'Assassin', Nilah: 'ADC', Nocturne: 'Assassin', Nunu: 'Tank',
+    Olaf: 'Fighter', Orianna: 'Mage', Ornn: 'Tank', Pantheon: 'Fighter', Poppy: 'Tank',
+    Pyke: 'Support', Qiyana: 'Assassin', Quinn: 'ADC', Rakan: 'Support', Rammus: 'Tank',
+    RekSai: 'Fighter', Rell: 'Tank', Renata: 'Support', Renekton: 'Fighter', Rengar: 'Assassin',
+    Riven: 'Fighter', Rumble: 'Fighter', Ryze: 'Mage', Samira: 'ADC', Sejuani: 'Tank',
+    Senna: 'Support', Seraphine: 'Mage', Sett: 'Fighter', Shaco: 'Assassin', Shen: 'Tank',
+    Shyvana: 'Fighter', Singed: 'Tank', Sion: 'Tank', Sivir: 'ADC', Skarner: 'Fighter',
+    Smolder: 'ADC', Sona: 'Support', Soraka: 'Support', Swain: 'Mage', Sylas: 'Mage',
+    Syndra: 'Mage', TahmKench: 'Tank', Taliyah: 'Mage', Talon: 'Assassin', Taric: 'Support',
+    Teemo: 'ADC', Thresh: 'Support', Tristana: 'ADC', Trundle: 'Fighter', Tryndamere: 'Fighter',
+    TwistedFate: 'Mage', Twitch: 'ADC', Udyr: 'Fighter', Urgot: 'Fighter', Varus: 'ADC',
+    Vayne: 'ADC', Veigar: 'Mage', Velkoz: 'Mage', Vex: 'Mage', Vi: 'Fighter',
+    Viego: 'Fighter', Viktor: 'Mage', Vladimir: 'Mage', Volibear: 'Fighter', Warwick: 'Fighter',
+    Wukong: 'Fighter', Xayah: 'ADC', Xerath: 'Mage', XinZhao: 'Fighter', Yasuo: 'Fighter',
+    Yone: 'Fighter', Yorick: 'Fighter', Yuumi: 'Support', Zac: 'Tank', Zed: 'Assassin',
+    Zeri: 'ADC', Ziggs: 'Mage', Zilean: 'Support', Zoe: 'Mage', Zyra: 'Mage',
+    default: 'Fighter',
   };
   const type = roleMap[championId] || roleMap.default;
   const abilitySets: Record<string, ChampionAbility[]> = {
@@ -296,6 +561,57 @@ export function getChampionAbilities(championId: string) {
   return abilitySets[type] || abilitySets.Fighter;
 }
 
+// === RUNE SYNERGY SYSTEM ===
+// Maps champion archetype to recommended/anti-synergy runes
+const archetypeRuneSynergy: Record<string, { recommended: string[]; anti: string[] }> = {
+  Fighter:    { recommended: ['conqueror', 'grasp', 'pressTheAttack'],        anti: ['aery', 'arcaneComet', 'firstStrike'] },
+  ADC:        { recommended: ['lethalTempo', 'fleetFootwork', 'pressTheAttack'], anti: ['grasp', 'aftershock', 'guardian'] },
+  Mage:       { recommended: ['arcaneComet', 'electrocute', 'aery', 'phaseRush', 'firstStrike'], anti: ['grasp', 'aftershock', 'lethalTempo'] },
+  Tank:       { recommended: ['grasp', 'aftershock', 'guardian'],             anti: ['electrocute', 'darkHarvest', 'lethalTempo', 'hailOfBlades'] },
+  Support:    { recommended: ['aery', 'guardian', 'glacialAugment'],          anti: ['conqueror', 'electrocute', 'darkHarvest', 'pressTheAttack'] },
+  Assassin:   { recommended: ['electrocute', 'darkHarvest', 'hailOfBlades'],  anti: ['grasp', 'aftershock', 'guardian', 'aery'] },
+};
+
+function getChampionArchetype(championId: string): string {
+  if (!championId) return 'Fighter';
+  const roleMap2: Record<string, string> = {
+    Aatrox:'Fighter',Ahri:'Mage',Akali:'Assassin',Akshan:'ADC',Alistar:'Tank',Amumu:'Tank',Anivia:'Mage',Annie:'Mage',
+    Aphelios:'ADC',Ashe:'ADC',AurelionSol:'Mage',Azir:'Mage',Bard:'Support',Belveth:'Fighter',Blitzcrank:'Tank',
+    Brand:'Mage',Braum:'Support',Briar:'Fighter',Caitlyn:'ADC',Camille:'Fighter',Cassiopeia:'Mage',Chogath:'Tank',
+    Corki:'ADC',Darius:'Fighter',Diana:'Fighter',Draven:'ADC',DrMundo:'Tank',Ekko:'Assassin',Elise:'Assassin',
+    Evelynn:'Assassin',Ezreal:'ADC',Fiddlesticks:'Mage',Fiora:'Fighter',Fizz:'Assassin',Galio:'Tank',Gangplank:'Fighter',
+    Garen:'Fighter',Gnar:'Fighter',Gragas:'Fighter',Graves:'ADC',Gwen:'Fighter',Hecarim:'Fighter',Heimerdinger:'Mage',
+    Illaoi:'Fighter',Irelia:'Fighter',Ivern:'Support',Janna:'Support',JarvanIV:'Fighter',Jax:'Fighter',Jayce:'Fighter',
+    Jhin:'ADC',Jinx:'ADC',Kaisa:'ADC',Kalista:'ADC',Karma:'Support',Karthus:'Mage',Kassadin:'Assassin',Katarina:'Assassin',
+    Kayle:'Fighter',Kayn:'Assassin',Kennen:'Mage',Khazix:'Assassin',Kindred:'ADC',Kled:'Fighter',KogMaw:'ADC',
+    Leblanc:'Assassin',LeeSin:'Fighter',Leona:'Tank',Lillia:'Mage',Lissandra:'Mage',Lucian:'ADC',Lulu:'Support',
+    Lux:'Mage',Malphite:'Tank',Malzahar:'Mage',Maokai:'Tank',MasterYi:'Assassin',Milio:'Support',MissFortune:'ADC',
+    Mordekaiser:'Fighter',Morgana:'Mage',Naafiri:'Assassin',Nami:'Support',Nasus:'Fighter',Nautilus:'Tank',Neeko:'Mage',
+    Nidalee:'Assassin',Nilah:'ADC',Nocturne:'Assassin',Nunu:'Tank',Olaf:'Fighter',Orianna:'Mage',Ornn:'Tank',
+    Pantheon:'Fighter',Poppy:'Tank',Pyke:'Support',Qiyana:'Assassin',Quinn:'ADC',Rakan:'Support',Rammus:'Tank',
+    RekSai:'Fighter',Rell:'Tank',Renata:'Support',Renekton:'Fighter',Rengar:'Assassin',Riven:'Fighter',Rumble:'Fighter',
+    Ryze:'Mage',Samira:'ADC',Sejuani:'Tank',Senna:'Support',Seraphine:'Mage',Sett:'Fighter',Shaco:'Assassin',
+    Shen:'Tank',Shyvana:'Fighter',Singed:'Tank',Sion:'Tank',Sivir:'ADC',Skarner:'Fighter',Smolder:'ADC',Sona:'Support',
+    Soraka:'Support',Swain:'Mage',Sylas:'Mage',Syndra:'Mage',TahmKench:'Tank',Taliyah:'Mage',Talon:'Assassin',
+    Taric:'Support',Teemo:'ADC',Thresh:'Support',Tristana:'ADC',Trundle:'Fighter',Tryndamere:'Fighter',TwistedFate:'Mage',
+    Twitch:'ADC',Udyr:'Fighter',Urgot:'Fighter',Varus:'ADC',Vayne:'ADC',Veigar:'Mage',Velkoz:'Mage',Vex:'Mage',
+    Vi:'Fighter',Viego:'Fighter',Viktor:'Mage',Vladimir:'Mage',Volibear:'Fighter',Warwick:'Fighter',Wukong:'Fighter',
+    Xayah:'ADC',Xerath:'Mage',XinZhao:'Fighter',Yasuo:'Fighter',Yone:'Fighter',Yorick:'Fighter',Yuumi:'Support',
+    Zac:'Tank',Zed:'Assassin',Zeri:'ADC',Ziggs:'Mage',Zilean:'Support',Zoe:'Mage',Zyra:'Mage',
+  };
+  return roleMap2[championId] || 'Fighter';
+}
+
+export function getRuneSynergy(championId: string, runePageId: string): number {
+  if (!runePageId || runePageId === 'conqueror') return 0; // Default rune, no bonus
+  const archetype = getChampionArchetype(championId);
+  const synergy = archetypeRuneSynergy[archetype];
+  if (!synergy) return 0;
+  if (synergy.recommended.includes(runePageId)) return 0.04;    // +%4 for correct rune
+  if (synergy.anti.includes(runePageId)) return -0.03;           // -%3 for wrong rune
+  return 0;                                                       // neutral
+}
+
 const defaultProfile: PlayerProfile = {
   name: '',
   level: 1, xp: 0, xpToNext: 150,
@@ -329,6 +645,15 @@ const defaultProfile: PlayerProfile = {
   careerStats: { totalMatches: 0, totalWins: 0, totalKills: 0, totalDeaths: 0, totalAssists: 0, highestRank: 'unranked', mostPlayedChamp: '', mostPlayedCount: 0, pentakills: 0, totalGoldEarned: 0, totalXP: 0 },
   clan: null, coach: null, cosmetics: [], activeCosmetics: { frame: null, icon: null, background: null },
   theme: 'dark', saveSlots: [], tutorialComplete: false,
+  seasonDay: 1, seasonNumber: 1, previousSeasonRank: 'unranked',
+  seasonPlacementGamesPlayed: 0, seasonPlacementWins: 0, seasonPlacementLosses: 0,
+  seasonHistory: [],
+  friends: [], lastMatchPlayers: [],
+  lobbyPartner: null, lobbyPartnerLane: null,
+  matchLaneChampions: [],
+  championPatchModifiers: {}, championPlayCounts: {}, patchVersion: '14.10',
+  matchSkinBonus: 0,
+  ownedSkins: {},
 };
 
 // === COSMETICS ===
@@ -468,6 +793,7 @@ function generateMatchEvents(stats: PlayerStats, level: number): MatchEvent[] {
 
 interface GameStore extends PlayerProfile {
   devMenu: boolean;
+  showSeasonEnd: boolean;
   startGame: (name: string) => void;
   advanceTime: (hours: number) => void;
   workJob: (jobId: string) => void;
@@ -491,7 +817,7 @@ interface GameStore extends PlayerProfile {
   endStream: () => void;
   advanceDay: () => void;
   addLog: (text: string) => void;
-  sendMessage: (from: string, text: string) => void;
+  sendMessage: (from: string, text: string, replyOptions?: any[]) => void;
   markMessageRead: (msgId: string) => void;
   markChatRead: (fromName: string) => void;
   toggleDevMenu: () => void;
@@ -507,11 +833,19 @@ interface GameStore extends PlayerProfile {
   saveGame: () => void;
   loadGame: () => boolean;
   acceptDuoRequest: (msgId: string) => void;
+  replyToMessage: (msgId: string, optionId: string) => void;
+  addFriend: (name: string, level: number, rank: RankTier, championPlayed?: string, kda?: MatchKDA) => void;
+  inviteToDuo: (friendName: string) => void;
+  lobbyPartner: string | null;
+  lobbyPartnerLane: string | null;
+  setLobbyPartner: (name: string | null, lane?: string | null) => void;
+  buySkin: (championId: string, skinNum: number, skinName: string, cost: number) => void;
   generateDailyQuests: () => void;
   checkQuestProgress: (type: string, amount: number) => void;
   startTournament: () => void;
   playTournamentMatch: () => void;
   advanceSeason: () => void;
+  startNewSeason: () => void;
   claimSeasonRewards: () => void;
   acceptSponsorship: (sponsorId: string) => void;
   openLootBox: () => void;
@@ -525,11 +859,15 @@ interface GameStore extends PlayerProfile {
   saveToSlot: (slot: number) => void;
   loadFromSlot: (slot: number) => boolean;
   completeTutorial: () => void;
+  setShowSeasonEnd: (val: boolean) => void;
+  applySeasonPatch: () => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...defaultProfile,
   devMenu: false,
+  showSeasonEnd: false,
+  lobbyPartner: null, lobbyPartnerLane: null,
   champions: generateInitialChampions(),
 
   startGame: (name) => {
@@ -556,8 +894,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // Random chat messages
     if (Math.random() < 0.4) {
       const sender = chatContacts[Math.floor(Math.random() * chatContacts.length)];
-      const text = chatTemplates[Math.floor(Math.random() * chatTemplates.length)];
-      get().sendMessage(sender.name, text);
+      const conv = chatConversations[Math.floor(Math.random() * chatConversations.length)];
+      get().sendMessage(sender.name, conv.text, conv.options);
     }
     // Duo request chance
     if (Math.random() < 0.15 && s.level >= 10) {
@@ -588,10 +926,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const events = generateMatchEvents(s.stats, s.level);
     const label = mode === 'ranked' ? 'Dereceli' : 'Normal';
     const seasonMod = getSeasonMod(s.season);
+    const duoLog = s.lobbyPartner ? ' | Duo: ' + s.lobbyPartner + ' (' + (s.lobbyPartnerLane || '?') + ')' : '';
+    const laneChampions = generateLaneChampions(s.name, s.champions[0]?.id || 'Aatrox', s.champions.filter(c => c.unlocked));
     set({ matchActive: true, matchMode: mode, matchEvents: events, matchKDA: { kills: 0, deaths: 0, assists: 0 },
       matchStats: { cs: 0, visionScore: 0, goldEarned: 0, damageDealt: 0, damageTaken: 0, towersDestroyed: 0, inhibsDestroyed: 0, objectives: [] },
       matchGold: 500, matchItems: [], matchAchievements: [], seasonModifier: seasonMod,
-      matchLog: [...s.matchLog, label + ' mac basladi! ' + seasonMod.eventDescription],
+      matchLog: [...s.matchLog, label + ' mac basladi!' + duoLog + ' ' + seasonMod.eventDescription],
+      duoPartner: s.lobbyPartner || s.duoPartner,
+      matchLaneChampions: laneChampions,
     });
   },
 
@@ -656,6 +998,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const s = get();
     const combineId = canCombine(s.matchItems);
     if (!combineId) return null;
+    if (s.matchItems.includes(combineId)) return null;
     const ci = matchCompletedItems.find(x => x.id === combineId)!;
     const newItems = s.matchItems.filter(i => !ci.components.includes(i));
     newItems.push(combineId);
@@ -666,7 +1009,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   finishMatch: (championId?) => {
     const s = get();
     const kda = s.matchKDA;
-    const kdaScore = kda.kills * 3 - kda.deaths * 2 + kda.assists;
+    const kdaScore = Math.max(0, kda.kills * 3 - kda.deaths * 2 + kda.assists);
 
     // === Counter bonus ===
     let counterBonus = 0;
@@ -675,8 +1018,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       if (pc) {
         const roles = ['Üst Koridor', 'Orman', 'Orta Koridor', 'Alt Koridor', 'Destek'];
         const myRoleIdx = roles.indexOf(pc.role);
-        const enemyRoleIdx = (myRoleIdx + 2) % 5; // simple rock-paper-scissors
-        counterBonus = myRoleIdx === enemyRoleIdx ? 0 : (Math.random() > 0.5 ? 0.08 : -0.04);
+        if (myRoleIdx >= 0) {
+          counterBonus = Math.random() > 0.6 ? 0.06 : (Math.random() > 0.5 ? 0.03 : -0.02);
+        }
       }
     }
 
@@ -689,7 +1033,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const runeBonus = (() => {
       const rp = runePages.find(x => x.id === s.matchRunePage);
       if (!rp) return 0;
-      return Object.values(rp.statBonus).reduce((a, b) => a + b, 0) * 0.01;
+      const baseBonus = Object.values(rp.statBonus).reduce((a, b) => a + b, 0) * 0.01;
+      const synergy = getRuneSynergy(championId || '', s.matchRunePage);
+      return baseBonus + synergy;
     })();
     const itemBonus = s.matchItems.reduce((sum: number, iid: string) => {
       const mi = [...matchComponents, ...matchCompletedItems].find(x => x.id === iid);
@@ -698,7 +1044,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }, 0);
 
     const seasonMod = s.seasonModifier;
-    const winChance = 0.3 + (s.stats.mekanik / 200) + (s.stats.oyunBilgisi / 200) + (s.stats.takimUyumu / 200) + (s.stats.mentalGuc / 200) + Math.min(0.2, kdaScore / 80) + spellBonus + runeBonus + itemBonus + counterBonus - 0.2;
+    const duoBonus = s.duoPartner ? 0.05 : 0;
+    // Patch modifier for the played champion
+    const patchMod = championId && s.championPatchModifiers[championId] ? s.championPatchModifiers[championId] : 0;
+    const coachBonus = s.coach ? Object.values(s.coach.statBonus).reduce((a: number, b: number) => a + (b || 0), 0) * 0.005 : 0;
+    const winChance = 0.3 + (s.stats.mekanik / 200) + (s.stats.oyunBilgisi / 200) + (s.stats.takimUyumu / 200) + (s.stats.mentalGuc / 200) + Math.min(0.2, kdaScore / 80) + spellBonus + runeBonus + itemBonus + counterBonus + duoBonus + patchMod + coachBonus - 0.2;
     const won = Math.random() < Math.min(0.88, winChance);
     let xpGain = won ? 30 + Math.floor(Math.random() * 20) : 10 + Math.floor(Math.random() * 10);
 
@@ -720,33 +1070,54 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // === Season multiplier ===
     xpGain = Math.floor(xpGain * seasonMod.xpMultiplier) + achXpBonus;
 
-    let newXp = s.xp + xpGain;
-    let newLevel = s.level;
-    let newXpToNext = s.xpToNext;
     let newStats = { ...s.stats };
     const statKeys: (keyof PlayerStats)[] = ['mekanik', 'oyunBilgisi', 'takimUyumu', 'mentalGuc'];
-    newStats[statKeys[Math.floor(Math.random() * 4)]] = Math.min(100, newStats[statKeys[Math.floor(Math.random() * 4)]] + (won ? 2 : 1));
-    while (newXp >= newXpToNext) {
-      newXp -= newXpToNext;
-      newLevel += 1;
-      newXpToNext = xpToLevel(newLevel);
-      newStats.mekanik = Math.min(100, newStats.mekanik + 2);
-      newStats.oyunBilgisi = Math.min(100, newStats.oyunBilgisi + 2);
-      newStats.takimUyumu = Math.min(100, newStats.takimUyumu + 1);
-      newStats.mentalGuc = Math.min(100, newStats.mentalGuc + 1);
-    }
+    const rndStat = statKeys[Math.floor(Math.random() * 4)];
+    newStats[rndStat] = Math.min(100, newStats[rndStat] + (won ? 2 : 1));
+
     // Ranked logic
     let newRank = s.rank;
     const newRankedGames = s.matchMode === 'ranked' ? s.rankedGames + 1 : s.rankedGames;
     let lpChangeText = '';
+    let newSeasonPlacementGamesPlayed = s.seasonPlacementGamesPlayed;
+    let newSeasonPlacementWins = s.seasonPlacementWins;
+    let newSeasonPlacementLosses = s.seasonPlacementLosses;
     if (s.matchMode === 'ranked') {
       if (s.rank.tier === 'unranked') {
-        const newTotal = s.rankedGames + 1;
-        lpChangeText = '(Plasman ' + newTotal + '/10)';
-        if (newTotal >= 10) {
-          const placed = calculatePlacementRank(won ? s.seasonWins + 1 : s.seasonWins, won ? s.seasonLosses : s.seasonLosses + 1);
-          newRank = placed;
-          lpChangeText = 'Yerlesme: ' + placed.tier.toUpperCase();
+        // Check if this is a season placement or first-ever placement
+        if (s.previousSeasonRank !== 'unranked') {
+          // Season placement (3 games)
+          newSeasonPlacementGamesPlayed = s.seasonPlacementGamesPlayed + 1;
+          if (won) newSeasonPlacementWins++;
+          else newSeasonPlacementLosses++;
+          const total = newSeasonPlacementGamesPlayed;
+          const placementNeeded = 3;
+          lpChangeText = '(Sezon Yerlesme ' + total + '/' + placementNeeded + ')';
+          if (total >= placementNeeded) {
+            const placementWins = newSeasonPlacementWins;
+            const prevTierIdx = getTierIndex(s.previousSeasonRank);
+            let placedTierIdx: number;
+            if (placementWins >= 2) {
+              // Majority wins → stay at previous rank
+              placedTierIdx = prevTierIdx;
+            } else {
+              // 0-1 wins → drop one tier
+              placedTierIdx = Math.max(0, prevTierIdx - 1);
+            }
+            const placedTier = placedTierIdx >= 0 && placedTierIdx < rankedTiers.length ? rankedTiers[placedTierIdx].tier : 'demir';
+            const isMasterPlus = placedTierIdx >= 7;
+            newRank = { tier: placedTier, lp: 50, division: isMasterPlus ? undefined : 4 };
+            lpChangeText = 'Yerlesme: ' + placedTier.toUpperCase() + ' (Ozet: ' + newSeasonPlacementWins + 'G ' + newSeasonPlacementLosses + 'M)';
+          }
+        } else {
+          // First-ever placement (10 games)
+          const newTotal = s.rankedGames + 1;
+          lpChangeText = '(Plasman ' + newTotal + '/10)';
+          if (newTotal >= 10) {
+            const placed = calculatePlacementRank(won ? s.seasonWins + 1 : s.seasonWins, won ? s.seasonLosses : s.seasonLosses + 1);
+            newRank = placed;
+            lpChangeText = 'Yerlesme: ' + placed.tier.toUpperCase();
+          }
         }
       } else {
         const isMasterPlus = getTierIndex(s.rank.tier) >= 7;
@@ -789,17 +1160,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const logParts = [(won ? '✅ KAZANILDI' : '❌ KAYBEDILDI'), '+' + xpGain + ' XP', '+' + be + ' BE'];
     if (lpChangeText) logParts.push(lpChangeText);
     if (validAch.length > 0) logParts.push('🏅 ' + validAch.length + ' basarim!');
-    // Quest checking & loot box chance
+    // Pre-compute level-ups from match XP (before quest adjustments)
+    let preCheckXp = s.xp + xpGain;
+    let preCheckLevel = s.level;
+    let preCheckXpToNext = s.xpToNext;
+    let levelUps = 0;
+    while (preCheckXp >= preCheckXpToNext) {
+      preCheckXp -= preCheckXpToNext;
+      preCheckLevel++;
+      levelUps++;
+      preCheckXpToNext = xpToLevel(preCheckLevel);
+    }
+    // Quest checking & loot box chance & level-up quest
     get().checkQuestProgress('playMatches', 1);
     if (won) get().checkQuestProgress('winMatches', 1);
     get().checkQuestProgress('getKills', kda.kills);
     get().checkQuestProgress('earnGold', s.matchStats.goldEarned);
+    if (levelUps > 0) get().checkQuestProgress('levelUp', levelUps);
+    const postQuest = get();
     // Promo series
     let newPromo = s.promoSeries;
-    if (s.matchMode === 'ranked' && s.rank.tier !== 'unranked' && !newPromo) {
-      const tierIdx = getTierIndex(s.rank.tier);
+    if (s.matchMode === 'ranked' && newRank.tier !== 'unranked' && !newPromo) {
+      const tierIdx = getTierIndex(newRank.tier);
       const isMasterPlus = tierIdx >= 7;
-      if (s.rank.lp >= 100 && tierIdx < rankedTiers.length - 1 && !isMasterPlus) {
+      if (newRank.lp >= 100 && tierIdx < rankedTiers.length - 1 && !isMasterPlus) {
         const nextTier = rankedTiers[tierIdx + 1].tier;
         newPromo = { targetTier: nextTier, wins: won ? 1 : 0, losses: won ? 0 : 1, needed: 2 };
       }
@@ -824,31 +1208,63 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (won && Math.random() < 0.1) {
       newBoxes.push({ id: 'box_' + Date.now() + '_2', name: 'Zafer Sandigi', emoji: '🎁', description: 'Zafer odulu!', rewards: [{ type: 'be', amount: 150 }, { type: 'skinShard' }] });
     }
+    // Recalculate XP from fresh state (quest rewards may have granted XP)
+    let recalcedXp = postQuest.xp + xpGain;
+    let recalcedLevel = postQuest.level;
+    let recalcedXpToNext = postQuest.xpToNext;
+    const recalcedStats = { ...newStats };
+    while (recalcedXp >= recalcedXpToNext) {
+      recalcedXp -= recalcedXpToNext;
+      recalcedLevel += 1;
+      recalcedXpToNext = xpToLevel(recalcedLevel);
+      recalcedStats.mekanik = Math.min(100, recalcedStats.mekanik + 2);
+      recalcedStats.oyunBilgisi = Math.min(100, recalcedStats.oyunBilgisi + 2);
+      recalcedStats.takimUyumu = Math.min(100, recalcedStats.takimUyumu + 1);
+      recalcedStats.mentalGuc = Math.min(100, recalcedStats.mentalGuc + 1);
+    }
+
     set({
-      xp: newXp, level: newLevel, xpToNext: newXpToNext, stats: newStats,
+      xp: recalcedXp, level: recalcedLevel, xpToNext: recalcedXpToNext, stats: recalcedStats,
       rank: newRank, rankedGames: newRankedGames,
-      blueEssence: s.blueEssence + be,
-      seasonWins: won ? s.seasonWins + 1 : s.seasonWins,
-      seasonLosses: won ? s.seasonLosses : s.seasonLosses + 1,
+      blueEssence: postQuest.blueEssence + be,
+      seasonWins: won ? postQuest.seasonWins + 1 : postQuest.seasonWins,
+      seasonLosses: won ? postQuest.seasonLosses : postQuest.seasonLosses + 1,
+      seasonPlacementGamesPlayed: newSeasonPlacementGamesPlayed,
+      seasonPlacementWins: newSeasonPlacementWins,
+      seasonPlacementLosses: newSeasonPlacementLosses,
       matchActive: false, matchMode: 'normal', matchEvents: [], matchKDA: { kills: 0, deaths: 0, assists: 0 },
       matchStats: { cs: 0, visionScore: 0, goldEarned: 0, damageDealt: 0, damageTaken: 0, towersDestroyed: 0, inhibsDestroyed: 0, objectives: [] },
       matchGold: 500, matchSpells: ['flash', 'ignite'], matchRunePage: 'conqueror', matchItems: [], matchAchievements: [],
-      matchLog: [...s.matchLog, logParts.join(' | ')],
+      matchLog: [...postQuest.matchLog, logParts.join(' | ')],
+      championPlayCounts: (() => {
+        const counts = { ...postQuest.championPlayCounts };
+        if (championId) counts[championId] = (counts[championId] || 0) + 1;
+        return counts;
+      })(),
       lastMatchResult: {
         won, mode: s.matchMode, xpGain, be, lpChangeText,
         championPlayed: championId || 'Bilinmiyor',
         kda: s.matchKDA, stats: s.matchStats, achievements: validAch,
         spells: s.matchSpells, runePage: s.matchRunePage, items: s.matchItems,
+        matchPlayers: generateBotPlayers(championId || '', s.matchKDA, won, s.level, s.name, s.rank.tier, s.champions.filter(c => c.unlocked)),
       } as MatchResult,
       lootBoxes: newBoxes,
       promoSeries: newPromo,
       careerStats: (() => {
-        const cs = { ...s.careerStats };
+        const cs = { ...postQuest.careerStats };
         cs.totalMatches++; if (won) cs.totalWins++;
         cs.totalKills += kda.kills; cs.totalDeaths += kda.deaths; cs.totalAssists += kda.assists;
         cs.totalGoldEarned += s.matchStats.goldEarned; cs.totalXP += xpGain;
         if (kda.kills >= 5) cs.pentakills++;
-        if (getTierIndex(s.rank.tier) > getTierIndex(cs.highestRank)) cs.highestRank = s.rank.tier;
+        if (getTierIndex(newRank.tier) > getTierIndex(cs.highestRank)) cs.highestRank = newRank.tier;
+        // Update most played champion
+        const counts = { ...postQuest.championPlayCounts };
+        if (championId) counts[championId] = (counts[championId] || 0) + 1;
+        let topChamp = cs.mostPlayedChamp, topCount = cs.mostPlayedCount;
+        for (const [cid, cnt] of Object.entries(counts) as [string, number][]) {
+          if (cnt > topCount) { topCount = cnt; topChamp = cid; }
+        }
+        cs.mostPlayedChamp = topChamp; cs.mostPlayedCount = topCount;
         return cs;
       })(),
       leaderboard: (() => {
@@ -859,7 +1275,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lb.sort((a: any, b: any) => b.points - a.points);
         return lb;
       })(),
-      balance: s.balance + (s.coach ? -s.coach.costPerDay : 0),
+      balance: postQuest.balance,
+      matchSkinBonus: 0,
+      lobbyPartner: null, lobbyPartnerLane: null,
+      matchLaneChampions: [],
       championMastery: (() => {
         const cm = [...s.championMastery];
         if (!championId) return cm;
@@ -940,6 +1359,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startStream: () => {
     const s = get();
+    if (s.twitch.streaming) return;
     s.advanceTime(3);
     const f = Math.floor(Math.random() * 50) + 10;
     const d = Math.floor(Math.random() * 200);
@@ -954,6 +1374,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   advanceDay: () => {
     const s = get();
     const newDay = s.currentTime.day + 1;
+    const newSeasonDay = s.seasonDay + 1;
     // Team offers
     if (Math.random() > 0.7 && s.level >= 20) {
       const teamNames = ['Dark Passage', 'Galakticos', 'SuperMassive', 'Papara', 'Besiktas', 'Aurora', 'FB Esports'];
@@ -967,13 +1388,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const updatedSponsors = s.sponsorships.filter(sp => sp.expiresDay > newDay);
     const expiredCount = s.sponsorships.length - updatedSponsors.length;
     updatedSponsors.forEach(sp => { sponsorIncome += sp.incomePerDay; });
+    const coachCost = s.coach ? -s.coach.costPerDay : 0;
     // Loot box chance
     let newBoxes = [...s.lootBoxes];
     if (Math.random() < 0.3) {
       newBoxes.push({ id: 'box_' + Date.now(), name: 'Hextech Sandik', emoji: '📦', description: 'Rastgele oduller icerir!', rewards: [{ type: 'be', amount: 50 }, { type: 'xp', amount: 30 }, { type: 'be', amount: 200 }, { type: 'skinShard' }] });
     }
-    set({ currentTime: { hour: 9, minute: 0, day: newDay }, energy: 100, tired: false, balance: s.balance + sponsorIncome, sponsorships: updatedSponsors, lootBoxes: newBoxes });
-    if (updatedSponsors.length < s.sponsorships.length) set(s => ({ matchLog: [...s.matchLog, '⚠️ ' + expiredCount + ' sponsorluk suresi doldu!'] }));
+    // Check if season ended
+    const seasonEnded = newSeasonDay > 30;
+    set({ currentTime: { hour: 9, minute: 0, day: newDay }, energy: 100, tired: false, balance: s.balance + sponsorIncome + coachCost, sponsorships: updatedSponsors, lootBoxes: newBoxes, seasonDay: seasonEnded ? s.seasonDay : newSeasonDay, showSeasonEnd: seasonEnded });
+    if (updatedSponsors.length < s.sponsorships.length) set(s2 => ({ matchLog: [...s2.matchLog, '⚠️ ' + expiredCount + ' sponsorluk suresi doldu!'] }));
+    if (seasonEnded) {
+      set(s2 => ({ matchLog: [...s2.matchLog, '🌟 Sezon sonu! 30 gun tamamlandi. Sezon odulleri ve yeni sezon icin hazir ol!'] }));
+    }
     // Generate daily quests
     get().generateDailyQuests();
   },
@@ -983,9 +1410,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ matchLog: [...s.matchLog, text] });
   },
 
-  sendMessage: (from, text) => {
+  sendMessage: (from, text, replyOptions) => {
     const s = get();
-    const msg: Message = { id: 'msg_' + Date.now() + Math.random(), from, text, read: false };
+    const msg: Message = { id: 'msg_' + Date.now() + Math.random(), from, text, read: false, replied: false, replyOptions };
     set({ messages: [...s.messages, msg] });
   },
 
@@ -1070,6 +1497,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       ...defaultProfile,
       devMenu: false,
+      showSeasonEnd: false,
       champions: champs,
       matchLog: ['[DEV] Oyun sifirlandi'],
     });
@@ -1084,11 +1512,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
       equipment: s.equipment, currentTime: s.currentTime,
       energy: s.energy, tired: s.tired,
       messages: s.messages, twitch: s.twitch,
-      matchLog: s.matchLog.slice(-30), team: s.team,
+      matchLog: s.matchLog.slice(-50), team: s.team,
       season: s.season, seasonWins: s.seasonWins, seasonLosses: s.seasonLosses,
       rankedGames: s.rankedGames, leaderboard: s.leaderboard,
       lastMatchResult: s.lastMatchResult,
-      devMenu: s.devMenu,
+      seasonDay: s.seasonDay, seasonNumber: s.seasonNumber,
+      previousSeasonRank: s.previousSeasonRank,
+      seasonPlacementGamesPlayed: s.seasonPlacementGamesPlayed,
+      seasonPlacementWins: s.seasonPlacementWins,
+      seasonPlacementLosses: s.seasonPlacementLosses,
+      seasonHistory: s.seasonHistory,
+      fame: s.fame, careerStats: s.careerStats,
+      cosmetics: s.cosmetics, activeCosmetics: s.activeCosmetics,
+      theme: s.theme, sponsorships: s.sponsorships,
+      tournamentHistory: s.tournamentHistory,
+      coach: s.coach, clan: s.clan,
+      tutorialComplete: s.tutorialComplete,
+      friends: s.friends, lastMatchPlayers: s.lastMatchPlayers,
+      championPatchModifiers: s.championPatchModifiers,
+      championPlayCounts: s.championPlayCounts,
+      patchVersion: s.patchVersion,
+      dailyQuests: s.dailyQuests,
+      promoSeries: s.promoSeries,
+      lootBoxes: s.lootBoxes,
+      seasonRewardsClaimed: s.seasonRewardsClaimed,
+      teamContract: s.teamContract,
+      saveSlots: s.saveSlots,
+      matchSkinBonus: s.matchSkinBonus,
+      ownedSkins: s.ownedSkins,
       savedAt: Date.now(),
     };
     try {
@@ -1117,6 +1568,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
         team: d.team || null, season: d.season || 'winter',
         seasonWins: d.seasonWins || 0, seasonLosses: d.seasonLosses || 0, rankedGames: d.rankedGames || 0,
         leaderboard: d.leaderboard || [], lastMatchResult: d.lastMatchResult || null,
+        seasonDay: d.seasonDay || 1, seasonNumber: d.seasonNumber || 1,
+        previousSeasonRank: d.previousSeasonRank || 'unranked',
+        seasonPlacementGamesPlayed: d.seasonPlacementGamesPlayed || 0,
+        seasonPlacementWins: d.seasonPlacementWins || 0,
+        seasonPlacementLosses: d.seasonPlacementLosses || 0,
+        seasonHistory: d.seasonHistory || [],
+        fame: d.fame || 0, careerStats: d.careerStats || s.careerStats,
+        cosmetics: d.cosmetics || [], activeCosmetics: d.activeCosmetics || { frame: null, icon: null, background: null },
+        theme: d.theme || 'dark', sponsorships: d.sponsorships || [],
+        tournamentHistory: d.tournamentHistory || [],
+        coach: d.coach || null, clan: d.clan || null,
+        tutorialComplete: d.tutorialComplete || false,
+        friends: d.friends || [], lastMatchPlayers: d.lastMatchPlayers || [],
+        championPatchModifiers: d.championPatchModifiers || {},
+        championPlayCounts: d.championPlayCounts || {},
+        patchVersion: d.patchVersion || '14.10',
+        dailyQuests: d.dailyQuests || [],
+        promoSeries: d.promoSeries || null,
+        lootBoxes: d.lootBoxes || [],
+        seasonRewardsClaimed: d.seasonRewardsClaimed || [],
+        teamContract: d.teamContract || null,
+        saveSlots: d.saveSlots || [],
+        matchSkinBonus: d.matchSkinBonus || 0,
+        ownedSkins: d.ownedSkins || {},
         devMenu: d.devMenu || false,
       });
       return true;
@@ -1131,6 +1606,72 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const msg = s.messages.find(m => m.id === msgId);
     if (!msg) return;
     set({ duoPartner: msg.from, messages: s.messages.filter(m => m.id !== msgId), matchLog: [...s.matchLog, '🤝 Duo istegi kabul edildi: ' + msg.from] });
+  },
+
+  replyToMessage: (msgId, optionId) => {
+    const s = get();
+    const msg = s.messages.find(m => m.id === msgId);
+    if (!msg || msg.replied || !msg.replyOptions) return;
+    const option = msg.replyOptions.find(o => o.id === optionId);
+    if (!option) return;
+    // Apply stat effect
+    const newStats = { ...s.stats };
+    if (option.statEffect) {
+      const key = option.statEffect.stat;
+      newStats[key] = Math.min(100, Math.max(0, newStats[key] + option.statEffect.value));
+    }
+    // Mark message as replied
+    const updatedMsgs = s.messages.map(m => m.id === msgId ? { ...m, replied: true } : m);
+    // NPC response
+    const responseMsg: Message = {
+      id: 'msg_' + Date.now() + Math.random(),
+      from: msg.from,
+      text: option.response,
+      read: false,
+      replied: true,
+    };
+    set({
+      messages: [...updatedMsgs, responseMsg],
+      stats: newStats,
+      matchLog: [...s.matchLog, '💬 ' + msg.from + ': ' + option.response],
+    });
+  },
+
+  addFriend: (name, level, rank, championPlayed, kda) => {
+    const s = get();
+    if (s.friends.some(f => f.name === name)) return;
+    const isOnline = Math.random() > 0.3;
+    const friend: Friend = {
+      name, level, rank, championPlayed,
+      kda: kda || { kills: 0, deaths: 0, assists: 0 },
+      isOnline, addedDay: s.currentTime.day,
+    };
+    set({
+      friends: [...s.friends, friend],
+      matchLog: [...s.matchLog, '👥 ' + name + ' arkadas eklendi!'],
+    });
+  },
+
+  inviteToDuo: (friendName) => {
+    const s = get();
+    const friend = s.friends.find(f => f.name === friendName);
+    if (!friend || !friend.isOnline) return;
+    // Send duo message
+    const msg: Message = {
+      id: 'msg_' + Date.now(),
+      from: friendName,
+      text: 'Duo? Beraber rank atalim mi?',
+      read: false,
+      replied: false,
+      replyOptions: [
+        { id: 'accept_duo', text: 'Tamam, baslayalim!', type: 'positive', response: 'Harika! Lobiye seni davet ediyorum.', statEffect: { stat: 'takimUyumu', value: 3 } },
+        { id: 'decline_duo', text: 'Simdi olmaz, baska zaman.', type: 'negative', response: 'Tamamdir, baska zaman o zaman.', statEffect: { stat: 'mentalGuc', value: -1 } },
+      ],
+    };
+    set({
+      messages: [...s.messages, msg],
+      matchLog: [...s.matchLog, '🎮 Duo daveti gonderildi: ' + friendName],
+    });
   },
 
   generateDailyQuests: () => {
@@ -1233,19 +1774,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   advanceSeason: () => {
+    set({ showSeasonEnd: true });
+  },
+
+  startNewSeason: () => {
     const s = get();
+    // Save current season to history
+    const entry: SeasonHistoryEntry = {
+      season: s.season,
+      seasonNumber: s.seasonNumber,
+      rank: s.rank.tier,
+      lp: s.rank.lp,
+      division: s.rank.division,
+      wins: s.seasonWins,
+      losses: s.seasonLosses,
+    };
+    // Claim season rewards
+    const reward = seasonRewardsList.find(r => r.tier === s.rank.tier);
+    if (reward && !s.seasonRewardsClaimed.includes(reward.skinId + '_' + s.seasonNumber)) {
+      set({
+        blueEssence: s.blueEssence + reward.beBonus,
+        xp: s.xp + reward.xpBonus,
+        seasonRewardsClaimed: [...s.seasonRewardsClaimed, reward.skinId + '_' + s.seasonNumber],
+        matchLog: [...s.matchLog, '🎁 Sezon ' + s.seasonNumber + ' odulu alindi: ' + reward.name + ' (+' + reward.beBonus + ' BE, +' + reward.xpBonus + ' XP)'],
+      });
+    }
+    // Cycle season
     const seasons: ('winter' | 'spring' | 'summer')[] = ['winter', 'spring', 'summer'];
     const nextIdx = (seasons.indexOf(s.season) + 1) % 3;
     const newSeason = seasons[nextIdx];
-    // Soft rank reset
-    const tierIdx = getTierIndex(s.rank.tier);
-    const newTier = tierIdx > 2 ? rankedTiers[Math.max(0, tierIdx - 2)].tier : s.rank.tier;
     const seasonMod = getSeasonMod(newSeason);
+    // Apply patch based on season play counts
+    const newModifiers = applyPatchToChampions(s.championPlayCounts, s.championPatchModifiers, s.seasonNumber);
+    const newPatchVer = '14.' + (10 + (s.seasonNumber % 20));
+    // Set previous season rank for placement
+    const prevRank = s.rank.tier;
+    // Start new season with placement mode
     set({
-      season: newSeason, seasonModifier: seasonMod,
-      seasonWins: 0, seasonLosses: 0,
-      rank: { tier: newTier, lp: s.rank.tier === 'unranked' ? 0 : 50, division: 4 },
-      matchLog: [...s.matchLog, '🔄 Yeni sezon: ' + seasonMod.name + '! Rank soft reset uygulandi.'],
+      season: newSeason,
+      seasonModifier: seasonMod,
+      seasonNumber: s.seasonNumber + 1,
+      seasonDay: 1,
+      seasonWins: 0,
+      seasonLosses: 0,
+      previousSeasonRank: prevRank === 'unranked' ? 'unranked' : prevRank,
+      seasonPlacementGamesPlayed: 0,
+      seasonPlacementWins: 0,
+      seasonPlacementLosses: 0,
+      rank: { tier: 'unranked', lp: 0 },
+      seasonHistory: [...s.seasonHistory, entry],
+      showSeasonEnd: false,
+      championPatchModifiers: newModifiers,
+      championPlayCounts: {},
+      patchVersion: newPatchVer,
+      matchLog: [...s.matchLog, '🔄 Sezon ' + (s.seasonNumber + 1) + ' basladi: ' + seasonMod.name + '! Yerlestirme maclari seni bekliyor.', '📋 Patch ' + newPatchVer + ' yayinlandi! Guncelleme notlarini kontrol et.'],
+
     });
   },
 
@@ -1352,7 +1935,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const key = 'lolcareergame_save_' + slot;
     const saved = [...s.saveSlots.filter(x => x.slot !== slot), saveInfo];
     // Save full state
-    const data: any = { name: s.name, level: s.level, xp: s.xp, xpToNext: s.xpToNext, stats: s.stats, balance: s.balance, blueEssence: s.blueEssence, rank: s.rank, champions: s.champions, championMastery: s.championMastery, equipment: s.equipment, currentTime: s.currentTime, energy: s.energy, tired: s.tired, season: s.season, seasonWins: s.seasonWins, seasonLosses: s.seasonLosses, rankedGames: s.rankedGames, fame: s.fame, careerStats: s.careerStats, cosmetics: s.cosmetics, activeCosmetics: s.activeCosmetics, theme: s.theme, sponsorships: s.sponsorships, tournamentHistory: s.tournamentHistory, coach: s.coach, clan: s.clan, tutorialComplete: s.tutorialComplete, savedAt: Date.now() };
+    const data: any = { name: s.name, level: s.level, xp: s.xp, xpToNext: s.xpToNext, stats: s.stats, balance: s.balance, blueEssence: s.blueEssence, rank: s.rank, champions: s.champions, championMastery: s.championMastery, equipment: s.equipment, currentTime: s.currentTime, energy: s.energy, tired: s.tired, season: s.season, seasonWins: s.seasonWins, seasonLosses: s.seasonLosses, rankedGames: s.rankedGames, seasonDay: s.seasonDay, seasonNumber: s.seasonNumber, previousSeasonRank: s.previousSeasonRank, seasonPlacementGamesPlayed: s.seasonPlacementGamesPlayed, seasonPlacementWins: s.seasonPlacementWins, seasonPlacementLosses: s.seasonPlacementLosses, seasonHistory: s.seasonHistory, fame: s.fame, careerStats: s.careerStats, cosmetics: s.cosmetics, activeCosmetics: s.activeCosmetics, theme: s.theme, sponsorships: s.sponsorships, tournamentHistory: s.tournamentHistory, coach: s.coach, clan: s.clan, tutorialComplete: s.tutorialComplete, messages: s.messages, twitch: s.twitch, matchLog: s.matchLog.slice(-50), team: s.team, leaderboard: s.leaderboard, lastMatchResult: s.lastMatchResult, duoPartner: s.duoPartner, dailyQuests: s.dailyQuests, promoSeries: s.promoSeries, lootBoxes: s.lootBoxes, seasonRewardsClaimed: s.seasonRewardsClaimed, teamContract: s.teamContract, friends: s.friends, lastMatchPlayers: s.lastMatchPlayers, championPatchModifiers: s.championPatchModifiers, championPlayCounts: s.championPlayCounts, patchVersion: s.patchVersion, matchSkinBonus: s.matchSkinBonus, ownedSkins: s.ownedSkins, savedAt: Date.now() };
     try {
       localStorage.setItem(key, JSON.stringify(data));
       set({ saveSlots: saved, matchLog: [...s.matchLog, '💾 Slot ' + slot + ' kaydedildi!'] });
@@ -1373,16 +1956,66 @@ export const useGameStore = create<GameStore>((set, get) => ({
         equipment: d.equipment || [], currentTime: d.currentTime || { hour: 9, minute: 0, day: 1 },
         energy: d.energy ?? 100, tired: d.tired ?? false,
         season: d.season || 'winter', seasonWins: d.seasonWins || 0, seasonLosses: d.seasonLosses || 0, rankedGames: d.rankedGames || 0,
+        seasonDay: d.seasonDay || s.currentTime.day || 1, seasonNumber: d.seasonNumber || 1,
+        previousSeasonRank: d.previousSeasonRank || 'unranked',
+        seasonPlacementGamesPlayed: d.seasonPlacementGamesPlayed || 0,
+        seasonPlacementWins: d.seasonPlacementWins || 0,
+        seasonPlacementLosses: d.seasonPlacementLosses || 0,
+        seasonHistory: d.seasonHistory || [],
         fame: d.fame || 0, careerStats: d.careerStats || s.careerStats,
         cosmetics: d.cosmetics || [], activeCosmetics: d.activeCosmetics || { frame: null, icon: null, background: null },
         theme: d.theme || 'dark', sponsorships: d.sponsorships || [],
         tournamentHistory: d.tournamentHistory || [], coach: d.coach || null, clan: d.clan || null,
         tutorialComplete: d.tutorialComplete || false,
-        matchLog: [...(s.matchLog || []), '📂 Slot ' + slot + ' yuklendi!'],
+        messages: d.messages || [], twitch: d.twitch || { followers: 0, subscribers: 0, donations: 0, streaming: false },
+        team: d.team || null, leaderboard: d.leaderboard || [],
+        lastMatchResult: d.lastMatchResult || null,
+        duoPartner: d.duoPartner || null,
+        dailyQuests: d.dailyQuests || [],
+        promoSeries: d.promoSeries || null,
+        lootBoxes: d.lootBoxes || [],
+        seasonRewardsClaimed: d.seasonRewardsClaimed || [],
+        teamContract: d.teamContract || null,
+        friends: d.friends || [], lastMatchPlayers: d.lastMatchPlayers || [],
+        championPatchModifiers: d.championPatchModifiers || {},
+        championPlayCounts: d.championPlayCounts || {},
+        patchVersion: d.patchVersion || '14.10',
+        matchSkinBonus: d.matchSkinBonus || 0,
+        ownedSkins: d.ownedSkins || {},
+        matchLog: [...(d.matchLog || s.matchLog || []), '📂 Slot ' + slot + ' yuklendi!'],
       });
       return true;
     } catch { return false; }
   },
 
   completeTutorial: () => set({ tutorialComplete: true }),
+
+  setShowSeasonEnd: (val) => set({ showSeasonEnd: val }),
+
+  setLobbyPartner: (name, lane) => set({ lobbyPartner: name, lobbyPartnerLane: lane || null }),
+
+  buySkin: (championId, skinNum, skinName, cost) => {
+    const s = get();
+    if (s.blueEssence < cost) return;
+    const owned = { ...s.ownedSkins };
+    if (!owned[championId]) owned[championId] = [];
+    if (owned[championId].includes(skinNum)) return;
+    owned[championId] = [...owned[championId], skinNum];
+    set({
+      blueEssence: s.blueEssence - cost,
+      ownedSkins: owned,
+      matchLog: [...s.matchLog, '🎨 ' + skinName + ' kostumu satin alindi! (-' + cost + ' BE)'],
+    });
+  },
+
+  applySeasonPatch: () => {
+    const s = get();
+    const newModifiers = applyPatchToChampions(s.championPlayCounts, s.championPatchModifiers, s.seasonNumber);
+    const newPatchVer = '14.' + (10 + (s.seasonNumber % 20));
+    set({
+      championPatchModifiers: newModifiers,
+      patchVersion: newPatchVer,
+      matchLog: [...s.matchLog, '📋 Patch ' + newPatchVer + ' uygulandi! Degisiklikleri Patch Notes\'dan kontrol et.'],
+    });
+  },
 }));

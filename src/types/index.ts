@@ -145,6 +145,45 @@ export interface Message {
   read: boolean;
   isOffer?: boolean;
   offer?: TeamOffer;
+  replied?: boolean;
+  replyOptions?: ReplyOption[];
+}
+
+export interface ReplyOption {
+  id: string;
+  text: string;
+  type: 'positive' | 'negative';
+  response: string;
+  statEffect?: { stat: keyof PlayerStats; value: number };
+}
+
+export interface Friend {
+  name: string;
+  level: number;
+  rank: RankTier;
+  championPlayed?: string;
+  kda?: MatchKDA;
+  isOnline: boolean;
+  addedDay: number;
+}
+
+export interface BotPlayer {
+  name: string;
+  level: number;
+  rank: RankTier;
+  championId: string;
+  kda: MatchKDA;
+  team: 'blue' | 'red';
+  isPlayer?: boolean;
+}
+
+export interface MatchLaneChampion {
+  name: string;
+  championId: string;
+  team: 'blue' | 'red';
+  lane: 'top' | 'jungle' | 'mid' | 'bot' | 'support';
+  alive: boolean;
+  deaths: number;
 }
 
 export interface TwitchStats {
@@ -179,6 +218,7 @@ export interface MatchResult {
   spells: string[];
   runePage: string;
   items: MatchItemBuild;
+  matchPlayers?: BotPlayer[];
 }
 
 export interface Tournament {
@@ -312,6 +352,16 @@ export interface SaveSlot {
   tier: RankTier;
 }
 
+export interface SeasonHistoryEntry {
+  season: 'winter' | 'spring' | 'summer';
+  seasonNumber: number;
+  rank: RankTier;
+  lp: number;
+  division?: 1 | 2 | 3 | 4;
+  wins: number;
+  losses: number;
+}
+
 export interface PlayerProfile {
   name: string;
   level: number;
@@ -366,4 +416,21 @@ export interface PlayerProfile {
   theme: 'dark' | 'light';
   saveSlots: SaveSlot[];
   tutorialComplete: boolean;
+  seasonDay: number;
+  seasonNumber: number;
+  previousSeasonRank: RankTier;
+  seasonPlacementGamesPlayed: number;
+  seasonPlacementWins: number;
+  seasonPlacementLosses: number;
+  seasonHistory: SeasonHistoryEntry[];
+  friends: Friend[];
+  lastMatchPlayers: BotPlayer[];
+  lobbyPartner: string | null;
+  lobbyPartnerLane: string | null;
+  matchLaneChampions: MatchLaneChampion[];
+  championPatchModifiers: Record<string, number>;
+  championPlayCounts: Record<string, number>;
+  patchVersion: string;
+  matchSkinBonus: number;
+  ownedSkins: Record<string, number[]>;
 }

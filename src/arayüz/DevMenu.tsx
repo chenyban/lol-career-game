@@ -94,6 +94,7 @@ export function DevMenu() {
       <Section title="Hizli Aksiyonlar">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           <button onClick={() => advanceDay()} style={orangeBtn}>Gunu Atla</button>
+          <button onClick={() => { const store = useGameStore.getState(); store.setShowSeasonEnd(true); }} style={{ ...btnStyle, background: '#c8a85e', color: '#000' }}>Sezon Bitir</button>
           <button onClick={() => addLog('[DEV] Test log')} style={grayBtn}>Log Ekle</button>
           <button onClick={devAddOffer} style={purpleBtn}>Teklif Gonder</button>
           <button onClick={devUnlockAll} style={cyanBtn}>Tum Sam. Ac</button>

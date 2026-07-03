@@ -5,11 +5,26 @@ import { DevMenu } from './DevMenu';
 import { availableJobs } from '../data/jobs';
 import { shopItems } from '../data/items';
 
-const iconMap: Record<string, string> = { lol: '\u{1F3AE}', amazon: '\u{1F6D2}', whatsapp: '\u{1F4AC}', jobs: '\u{1F4CB}', twitch: '\u{1F4FA}', browser: '\u{1F310}', profile: '\u{1F464}', settings: '\u2699\uFE0F' };
-const labelMap: Record<string, string> = { lol: 'LoL Istemcisi', amazon: 'Amazon', whatsapp: 'WhatsApp', jobs: 'Is Ilanlari', twitch: 'Kick Yayin', browser: 'Haberler', profile: 'Profil', settings: 'Ayarlar' };
+const iconMap: Record<string, string> = { lol: '\u{1F3AE}', amazon: '\u{1F6D2}', whatsapp: '\u{1F4AC}', jobs: '\u{1F4CB}', twitch: '\u{1F4FA}', browser: '\u{1F310}', profile: '\u{1F464}', settings: '\u2699\uFE0F', patchnotes: '\u{1F4CB}' };
+const labelMap: Record<string, string> = { lol: 'LoL Istemcisi', amazon: 'Amazon', whatsapp: 'WhatsApp', jobs: 'Is Ilanlari', twitch: 'Kick Yayin', browser: 'Haberler', profile: 'Profil', settings: 'Ayarlar', patchnotes: 'Patch Notes' };
+const appColors: Record<string, string> = { lol: '#c8a85e', amazon: '#f90', whatsapp: '#25d366', jobs: '#4fc3f7', twitch: '#53ff00', browser: '#e67e22', profile: '#ff6b6b', settings: '#9b59b6', patchnotes: '#c8a85e' };
+
+const GlobalStyles = () => (
+  <style>{`
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: rgba(200,168,94,0.25); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(200,168,94,0.45); }
+    @keyframes glowPulse { 0%,100% { box-shadow: 0 0 8px rgba(200,168,94,0), 0 0 0 rgba(200,168,94,0); } 50% { box-shadow: 0 0 14px rgba(200,168,94,0.25), 0 0 28px rgba(200,168,94,0.08); } }
+    @keyframes livePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.7); } }
+    @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    @keyframes iconHoverFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  `}</style>
+);
 
 export function DesktopUI() {
-  const { name, currentTime, balance, rank, messages, energy, tired, fame, matchLog, advanceDay, toggleDevMenu } = useGameStore();
+  const { name, currentTime, balance, rank, messages, energy, tired, fame, matchLog, advanceDay, toggleDevMenu, seasonDay, season, seasonWins, seasonLosses, seasonNumber, previousSeasonRank, showSeasonEnd, startNewSeason, setShowSeasonEnd } = useGameStore();
   const [page, setPage] = useState<string>('desktop');
   const [sleeping, setSleeping] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -60,7 +75,7 @@ export function DesktopUI() {
   const openApp = (id: string) => { setPage(id); };
   const goBack = () => { setPage('desktop'); };
 
-  const apps = ['lol', 'amazon', 'whatsapp', 'jobs', 'twitch', 'browser', 'profile', 'settings'];
+  const apps = ['lol', 'amazon', 'whatsapp', 'jobs', 'twitch', 'browser', 'patchnotes', 'profile', 'settings'];
   const rankLabel = rank.tier === 'unranked' ? 'Unranked' : rank.tier.charAt(0).toUpperCase() + rank.tier.slice(1);
 
   const renderAppContent = () => {
@@ -73,6 +88,7 @@ export function DesktopUI() {
       case 'browser': return <BrowserUI />;
       case 'profile': return <ProfileUI />;
       case 'settings': return <SettingsUI />;
+      case 'patchnotes': return <PatchNotesUI />;
       default: return null;
     }
   };
@@ -80,77 +96,343 @@ export function DesktopUI() {
   if (page !== 'desktop') {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: 'var(--bg-taskbar)', borderBottom: '1px solid var(--border)', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <button className="btn btn-sm" onClick={goBack}>← Geri</button>
+        <GlobalStyles />
+        <div style={{ background: 'linear-gradient(180deg, #0d1025, #080a14)', borderBottom: '2px solid #c8a85e', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <button onClick={goBack} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid rgba(200,168,94,0.3)', background: 'rgba(200,168,94,0.08)', color: '#c8a85e', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,168,94,0.18)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(200,168,94,0.08)'; }}>
+            ← Geri
+          </button>
           <span style={{ fontSize: 14 }}>{iconMap[page]}</span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>{labelMap[page]}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#c8a85e' }}>{labelMap[page]}</span>
           <div style={{ flex: 1 }} />
           {energyBar}
-          <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{name} | {String(currentTime.hour).padStart(2,'0')}:{String(currentTime.minute).padStart(2,'0')}</span>
+          <span style={{ fontSize: 10, color: '#888' }}>{name} | {String(currentTime.hour).padStart(2,'0')}:{String(currentTime.minute).padStart(2,'0')}</span>
         </div>
         <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-primary)' }}>
           {renderAppContent()}
         </div>
         {sleeping && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, transition: 'opacity 0.5s' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>😴</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#c8a85e' }}>Enerjin tukendi...</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>Yeni gune geciliyor.</div>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, transition: 'opacity 0.6s' }}>
+            <div style={{ fontSize: 56, marginBottom: 20, animation: 'iconHoverFloat 2s ease-in-out infinite' }}>😴</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#c8a85e', letterSpacing: 1 }}>Enerjin tukendi...</div>
+            <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Yeni gune geciliyor.</div>
           </div>
         )}
+        {showSeasonEnd && <SeasonEndModal />}
       </div>
-    );
-  }
+  );
+}
+
+  const seasonNames: Record<string, string> = { winter: 'Kis', spring: 'Ilkbahar', summer: 'Yaz' };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, background: `url('/ana-menu-bg.png') center / cover no-repeat`, padding: 20, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 90px)', gridAutoRows: 90, gap: 12, alignContent: 'start', justifyContent: 'start' }}>
+      <GlobalStyles />
+      <div style={{ flex: 1, background: `url('/ana-menu-bg.png') center / cover no-repeat`, padding: 24, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,16,37,0.55) 0%, rgba(26,10,46,0.45) 50%, rgba(13,16,37,0.55) 100%), radial-gradient(ellipse at 30% 50%, rgba(200,168,94,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(79,195,247,0.04) 0%, transparent 60%)' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 100px)', gridAutoRows: 100, gap: 16, alignContent: 'start', justifyContent: 'start', position: 'relative', zIndex: 1 }}>
           {apps.map(id => (
             <button key={id} onClick={() => openApp(id)}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10, borderRadius: 10, border: '2px solid transparent', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)', cursor: 'pointer', transition: 'all 0.15s', color: '#fff', fontSize: 11, position: 'relative', width: 90, height: 90 }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.3)'; e.currentTarget.style.borderColor = 'transparent'; }}>
-              <span style={{ fontSize: 28, lineHeight: 1 }}>{iconMap[id]}</span>
-              <span style={{ lineHeight: 1.2, textAlign: 'center' }}>{labelMap[id]}</span>
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 10,
+                borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)',
+                backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                cursor: 'pointer', transition: 'all 0.2s ease', color: '#fff', fontSize: 11, position: 'relative',
+                width: 100, height: 100, boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.borderColor = 'rgba(200,168,94,0.4)';
+                e.currentTarget.style.transform = 'scale(1.06)';
+                e.currentTarget.style.boxShadow = '0 4px 24px rgba(200,168,94,0.18)';
+                e.currentTarget.style.zIndex = '2';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.2)';
+                e.currentTarget.style.zIndex = '1';
+              }}>
+              <span style={{ fontSize: 32, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>{iconMap[id]}</span>
+              <span style={{ lineHeight: 1.2, textAlign: 'center', fontWeight: 500, letterSpacing: 0.3 }}>{labelMap[id]}</span>
               {id === 'whatsapp' && messages.filter(m => !m.read).length > 0 && (
-                <span style={{ position: 'absolute', top: 4, right: 4, width: 10, height: 10, borderRadius: '50%', background: '#ff6b6b', border: '2px solid rgba(0,0,0,0.3)' }} />
+                <span style={{ position: 'absolute', top: 6, right: 6, minWidth: 16, height: 16, borderRadius: '50%', background: '#ff6b6b', border: '2px solid rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, padding: '0 3px' }}>
+                  {messages.filter(m => !m.read).length}
+                </span>
               )}
             </button>
           ))}
         </div>
       </div>
-      <div style={{ height: 44, background: 'var(--bg-taskbar)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 12px', flexShrink: 0 }}>
+      <div style={{ height: 46, background: 'linear-gradient(180deg, #0d1025 0%, #080a14 100%)', borderTop: '1px solid rgba(200,168,94,0.12)', display: 'flex', alignItems: 'center', padding: '0 14px', flexShrink: 0, gap: 10 }}>
         <div style={{ flex: 1 }} />
         {energyBar}
-        <div style={{ width: 12 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={{ color: 'var(--accent)' }}>{name}</span>
-          <span>{rankLabel}</span>
+        <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#888' }}>
+          <span style={{ color: '#c8a85e', fontWeight: 700 }}>{name}</span>
+          <span style={{ fontWeight: 600, color: '#ccc' }}>{rankLabel}</span>
           {fame > 0 && <span style={{ color: '#f39c12', fontWeight: 700 }}>⭐{fame}</span>}
-          <span>{balance} TL</span>
-          <span>{String(currentTime.hour).padStart(2,'0')}:{String(currentTime.minute).padStart(2,'0')} | Gun {currentTime.day}</span>
+          <span style={{ fontWeight: 600, color: '#ffd93d' }}>{balance} TL</span>
+          <span style={{ color: '#c8a85e', fontWeight: 600, fontSize: 11 }}>{seasonNames[season] || season}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ccc', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: 13 }}>🕐</span>
+            <span style={{ fontWeight: 600 }}>{String(currentTime.hour).padStart(2,'0')}:{String(currentTime.minute).padStart(2,'0')}</span>
+            <span style={{ color: '#555' }}>•</span>
+            <span>Gun {seasonDay}/30</span>
+          </span>
         </div>
       </div>
       {sleeping && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>😴</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#c8a85e' }}>Enerjin tukendi...</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>Yeni gune geciliyor.</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, transition: 'opacity 0.6s' }}>
+          <div style={{ fontSize: 56, marginBottom: 20, animation: 'iconHoverFloat 2s ease-in-out infinite' }}>😴</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#c8a85e', letterSpacing: 1 }}>Enerjin tukendi...</div>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Yeni gune geciliyor.</div>
         </div>
       )}
       <DevMenu />
       {toast && (
-        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 10000, background: 'rgba(13,16,37,0.95)', border: '1px solid #c8a85e', borderRadius: 8, padding: '10px 20px', fontSize: 12, color: '#e0e0e0', maxWidth: 320, boxShadow: '0 4px 20px rgba(200,168,94,0.2)', animation: 'none' }}>
+        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 10000, background: 'rgba(13,16,37,0.97)', border: '1px solid #c8a85e', borderRadius: 10, padding: '12px 22px', fontSize: 12, color: '#e0e0e0', maxWidth: 340, boxShadow: '0 4px 24px rgba(200,168,94,0.25)', animation: 'fadeIn 0.3s ease-out' }}>
           {toast}
-          </div>
-        )}
-        {toast && (
-          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 10000, background: 'rgba(13,16,37,0.95)', border: '1px solid #c8a85e', borderRadius: 8, padding: '10px 20px', fontSize: 12, color: '#e0e0e0', maxWidth: 320, boxShadow: '0 4px 20px rgba(200,168,94,0.2)' }}>
-            {toast}
-          </div>
-        )}
+        </div>
+      )}
+      {showSeasonEnd && <SeasonEndModal />}
+    </div>
+  );
+}
+
+/* === App Header Component === */
+function AppHeader({ icon, title, accent = '#c8a85e', children }: { icon: string; title: string; accent?: string; children?: React.ReactNode }) {
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #1a0a2e 0%, #0d1025 100%)', padding: '14px 20px', borderBottom: '2px solid #c8a85e', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+      <span style={{ fontSize: 18, fontWeight: 800, color: '#c8a85e', letterSpacing: 0.5 }}>{icon} {title}</span>
+      {children}
+    </div>
+  );
+}
+
+function PatchNotesUI() {
+  const { patchVersion, championPatchModifiers, championPlayCounts, champions } = useGameStore();
+  const [filter, setFilter] = useState<'all' | 'buffed' | 'nerfed' | 'neutral'>('all');
+
+  const allChampData = champions.map(c => ({
+    ...c,
+    modifier: championPatchModifiers[c.id] || 0,
+    plays: championPlayCounts[c.id] || 0,
+  })).sort((a, b) => b.plays - a.plays);
+
+  const filtered = allChampData.filter(c => {
+    if (filter === 'buffed') return c.modifier > 0;
+    if (filter === 'nerfed') return c.modifier < 0;
+    if (filter === 'neutral') return c.modifier === 0;
+    return true;
+  });
+
+  const buffCount = allChampData.filter(c => c.modifier > 0).length;
+  const nerfCount = allChampData.filter(c => c.modifier < 0).length;
+  const neutralCount = allChampData.filter(c => c.modifier === 0).length;
+
+  const getModColor = (mod: number) => mod > 0 ? '#2ecc71' : mod < 0 ? '#f44336' : '#888';
+  const getModLabel = (mod: number) => mod > 0 ? '↑ BUFF' : mod < 0 ? '↓ NERF' : '— Degismedi';
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0d1a' }}>
+      <AppHeader icon="📋" title="Patch Notes" accent="#9b59b6">
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#9b59b6', marginLeft: 4 }}>v{patchVersion}</span>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', gap: 14, fontSize: 10 }}>
+          <span style={{ color: '#2ecc71', fontWeight: 600 }}>🟢 {buffCount} Buff</span>
+          <span style={{ color: '#f44336', fontWeight: 600 }}>🔴 {nerfCount} Nerf</span>
+          <span style={{ color: '#888', fontWeight: 600 }}>⚪ {neutralCount}</span>
+        </div>
+      </AppHeader>
+
+      <div style={{ display: 'flex', gap: 6, padding: '10px 20px', background: '#0d1025', borderBottom: '1px solid var(--border)' }}>
+        {[
+          { key: 'all' as const, label: 'Tumu', emoji: '📋' },
+          { key: 'buffed' as const, label: 'Bufflanan', emoji: '🟢' },
+          { key: 'nerfed' as const, label: 'Nerflenen', emoji: '🔴' },
+          { key: 'neutral' as const, label: 'Degismeyen', emoji: '⚪' },
+        ].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{
+              padding: '6px 14px', borderRadius: 20, border: '1px solid ' + (filter === f.key ? (f.key === 'buffed' ? '#2ecc71' : f.key === 'nerfed' ? '#f44336' : '#c8a85e') : 'var(--border)'),
+              background: filter === f.key ? 'rgba(200,168,94,0.08)' : 'transparent',
+              color: filter === f.key ? (f.key === 'buffed' ? '#2ecc71' : f.key === 'nerfed' ? '#f44336' : '#c8a85e') : 'var(--text-secondary)',
+              fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: filter === f.key ? 700 : 400,
+              transition: 'all 0.15s',
+            }}>
+            {f.emoji} {f.label}
+          </button>
+        ))}
       </div>
+
+      <div style={{ flex: 1, overflow: 'auto', padding: '14px 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 8 }}>
+          {filtered.map(c => {
+            const modColor = getModColor(c.modifier);
+            const modLabel = getModLabel(c.modifier);
+            const modVal = c.modifier !== 0 ? (c.modifier > 0 ? '+' : '') + (c.modifier * 100).toFixed(1) + '%' : '0%';
+            return (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
+                background: c.modifier > 0 ? 'rgba(46,204,113,0.04)' : c.modifier < 0 ? 'rgba(244,67,54,0.04)' : '#0d1025',
+                border: '1px solid ' + (c.modifier !== 0 ? 'rgba(' + (c.modifier > 0 ? '46,204,113' : '244,67,54') + ',0.15)' : 'rgba(255,255,255,0.05)'),
+                opacity: c.unlocked ? 1 : 0.5, transition: 'all 0.15s',
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 8, overflow: 'hidden', border: '2px solid ' + modColor,
+                  background: '#0a0a1a', flexShrink: 0,
+                }}>
+                  <img src={'https://ddragon.leagueoflegends.com/cdn/14.10.1/img/champion/' + c.id + '.png'} alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', filter: c.unlocked ? 'none' : 'grayscale(1)' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#e0e0e0' }}>{c.name}</span>
+                    <span style={{ fontSize: 9, color: '#888' }}>{c.role}</span>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 4, fontSize: 9, fontWeight: 700,
+                      background: c.modifier !== 0 ? 'rgba(' + (c.modifier > 0 ? '46,204,113' : '244,67,54') + ',0.1)' : 'rgba(255,255,255,0.05)',
+                      color: modColor,
+                    }}>
+                      {modLabel} {modVal}
+                    </span>
+                    {c.difficulty && (
+                      <span style={{ fontSize: 9, color: '#666' }}>
+                        {'⭐'.repeat(c.difficulty)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 9, color: '#666', marginTop: 3 }}>
+                    {c.unlocked ? '✅ Acik' : '🔒 Kilitli'} • {c.cost} BE • {c.plays} kez oynandi
+                  </div>
+                </div>
+                {c.modifier !== 0 && (
+                  <div style={{
+                    width: 5, height: 38, borderRadius: 3,
+                    background: modColor,
+                    flexShrink: 0,
+                  }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeasonEndModal() {
+  const { season, seasonNumber, rank, seasonWins, seasonLosses, seasonHistory, startNewSeason, setShowSeasonEnd } = useGameStore();
+
+  const seasonNames: Record<string, string> = { winter: 'Kis', spring: 'Ilkbahar', summer: 'Yaz' };
+  const rankColors: Record<string, string> = { unranked: '#666', demir: '#8c8c8c', bronz: '#cd7f32', gumus: '#c0c0c0', altin: '#ffd700', platin: '#e5e4e2', zumrut: '#2ecc71', elmas: '#b9f2ff', master: '#9b59b6', grandmaster: '#e74c3c', challenger: '#f1c40f' };
+
+  const totalGames = seasonWins + seasonLosses;
+  const winRate = totalGames > 0 ? Math.round((seasonWins / totalGames) * 100) : 0;
+  const rankLabel = rank.tier === 'unranked' ? 'Unranked' : rank.tier.charAt(0).toUpperCase() + rank.tier.slice(1);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', animation: 'fadeIn 0.4s ease-out' }}>
+      <div style={{
+        background: 'rgba(13,16,37,0.92)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        border: '2px solid rgba(200,168,94,0.35)',
+        borderRadius: 20,
+        padding: '44px 52px',
+        maxWidth: 540,
+        width: '90%',
+        textAlign: 'center',
+        boxShadow: '0 0 80px rgba(200,168,94,0.15), 0 20px 60px rgba(0,0,0,0.5)',
+        animation: 'fadeIn 0.5s ease-out',
+      }}>
+        <div style={{ fontSize: 56, marginBottom: 12 }}>🏆</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: '#c8a85e', marginBottom: 6, letterSpacing: 1 }}>
+          Sezon {seasonNumber} Tamamlandi!
+        </div>
+        <div style={{ fontSize: 14, color: '#888', marginBottom: 28 }}>
+          {seasonNames[season] || season} Sezonu • 30 Gun
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 28 }}>
+          <div style={{ padding: '18px 14px', borderRadius: 12, border: '1px solid rgba(200,168,94,0.2)', background: 'rgba(200,168,94,0.05)' }}>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Bitis Ranki</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: rankColors[rank.tier] || '#fff' }}>
+              {rankLabel}
+            </div>
+            {rank.tier !== 'unranked' && (
+              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                {rank.lp} LP{rank.division ? ' • ' + ['IV','III','II','I'][4 - rank.division] : ''}
+              </div>
+            )}
+          </div>
+          <div style={{ padding: '18px 14px', borderRadius: 12, border: '1px solid rgba(79,195,247,0.2)', background: 'rgba(79,195,247,0.05)' }}>
+            <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>Sezon Performansi</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#e0e0e0' }}>
+              {seasonWins}G {seasonLosses}M
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: winRate >= 50 ? '#2ecc71' : '#f44336' }}>
+              %{winRate}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 12, color: '#e0e0e0', lineHeight: 1.6, marginBottom: 10 }}>
+          Yeni sezonda rankin sinirli olarak sifirlanacak.
+        </div>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 28 }}>
+          3 yerlestirme maci oynayacaksin. Maclarin cogunu kazanirsan onceki sezon rankinda,
+          kaybedersen bir alt kademede baslayacaksin.
+        </div>
+        <div style={{ fontSize: 11, color: '#9b59b6', marginBottom: 24, padding: '10px 16px', borderRadius: 8, background: 'rgba(155,89,182,0.08)', border: '1px solid rgba(155,89,182,0.2)' }}>
+          📋 Yeni patch yayinlandi! Patch Notes'dan degisiklikleri kontrol et.
+        </div>
+
+        {seasonHistory.length > 0 && (
+          <div style={{ marginBottom: 28, textAlign: 'left' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 10 }}>GECMIS SEZONLAR</div>
+            {seasonHistory.map((h, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', marginBottom: 4, fontSize: 11, border: '1px solid rgba(255,255,255,0.03)' }}>
+                <span style={{ color: '#c8a85e', fontWeight: 600 }}>S{h.seasonNumber}</span>
+                <span>{seasonNames[h.season]}</span>
+                <div style={{ flex: 1 }} />
+                <span style={{ color: rankColors[h.rank] || '#fff', fontWeight: 600 }}>
+                  {h.rank === 'unranked' ? 'Unranked' : h.rank.charAt(0).toUpperCase() + h.rank.slice(1)}
+                </span>
+                <span style={{ color: '#666' }}>{h.wins}G {h.losses}M</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={() => startNewSeason()}
+          style={{
+            padding: '15px 52px', borderRadius: 12, border: 'none',
+            background: 'linear-gradient(135deg, #c8a85e, #a8862e)',
+            color: '#0a0a1a', fontSize: 16, fontWeight: 800,
+            cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1,
+            boxShadow: '0 4px 24px rgba(200,168,94,0.35)',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 6px 36px rgba(200,168,94,0.5)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(200,168,94,0.35)'; }}>
+          🚀 Yeni Sezona Basla
+        </button>
+
+        <div style={{ marginTop: 18 }}>
+          <button onClick={() => setShowSeasonEnd(false)}
+            style={{ padding: '7px 24px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#888', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ccc'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}>
+            Simdi Degil
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -174,6 +456,10 @@ function getJobCategory(job: any): string {
   return 'hizmet';
 }
 
+const catAccentColors: Record<string, string> = {
+  all: '#c8a85e', hizmet: '#ff9800', teknoloji: '#4fc3f7', gaming: '#2ecc71', ulasim: '#e91e63', egitim: '#9b59b6',
+};
+
 function JobsUI() {
   const { level, workJob } = useGameStore();
   const [jobFilter, setJobFilter] = useState('all');
@@ -185,83 +471,95 @@ function JobsUI() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0a0d1a' }}>
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #0d1525 0%, #1a1a2e 100%)', padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span style={{ fontSize: 18, fontWeight: 800, color: '#4fc3f7' }}>💼 Is Ilanlari</span>
+      <AppHeader icon="💼" title="Is Ilanlari" accent="#4fc3f7">
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Seviye {level}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Seviye {level}</div>
         <button onClick={() => setSortBy(sortBy === 'pay' ? 'level' : 'pay')}
-          style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500, transition: 'all 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#4fc3f7'; e.currentTarget.style.color = '#4fc3f7'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}>
           Siralama: {sortBy === 'pay' ? '💰 Ucret' : '📈 Seviye'}
         </button>
+      </AppHeader>
+
+      <div style={{ display: 'flex', gap: 6, padding: '10px 20px', background: '#0d1025', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        {jobCategories.map(cat => {
+          const isActive = jobFilter === cat.key;
+          const accent = catAccentColors[cat.key];
+          return (
+            <button key={cat.key} onClick={() => setJobFilter(cat.key)}
+              style={{
+                padding: '6px 14px', borderRadius: 20, border: '1px solid ' + (isActive ? accent : 'var(--border)'),
+                background: isActive ? 'rgba(' + (cat.key === 'all' ? '200,168,94' : cat.key === 'hizmet' ? '255,152,0' : cat.key === 'teknoloji' ? '79,195,247' : cat.key === 'gaming' ? '46,204,113' : cat.key === 'ulasim' ? '233,30,99' : '155,89,182') + ',0.1)' : 'transparent',
+                color: isActive ? accent : 'var(--text-secondary)',
+                fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: isActive ? 700 : 400,
+                transition: 'all 0.15s',
+              }}>
+              {cat.emoji} {cat.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Category filters */}
-      <div style={{ display: 'flex', gap: 4, padding: '8px 20px', background: '#0d1025', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-        {jobCategories.map(cat => (
-          <button key={cat.key} onClick={() => setJobFilter(cat.key)}
-            style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid ' + (jobFilter === cat.key ? '#4fc3f7' : 'var(--border)'), background: jobFilter === cat.key ? 'rgba(79,195,247,0.1)' : 'transparent', color: jobFilter === cat.key ? '#4fc3f7' : 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: jobFilter === cat.key ? 700 : 400 }}>
-            {cat.emoji} {cat.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Job Cards */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '18px 20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 12 }}>
           {filtered.map(job => {
             const ok = level >= (job.requirement?.level || 1);
             const reqLvl = job.requirement?.level || 1;
             const ctg = getJobCategory(job);
             const ctgIcon = jobCategories.find(c => c.key === ctg)?.emoji || '📋';
+            const ctgLabel = jobCategories.find(c => c.key === ctg)?.label || '';
+            const ctgColor = catAccentColors[ctg] || '#888';
             return (
               <div key={job.id} style={{
-                background: ok ? '#0d1025' : '#0a0c18', border: '1px solid ' + (ok ? 'var(--border)' : '#1a1a2e'), borderRadius: 10, padding: 16,
-                opacity: ok ? 1 : 0.55, transition: 'all 0.15s', position: 'relative',
-              }}>
-                {/* Category badge */}
-                <div style={{ position: 'absolute', top: 12, right: 12, padding: '2px 8px', borderRadius: 4, background: ok ? 'rgba(79,195,247,0.1)' : 'rgba(255,255,255,0.03)', color: ok ? '#4fc3f7' : '#444', fontSize: 9 }}>
-                  {ctgIcon} {jobCategories.find(c => c.key === ctg)?.label}
+                background: '#0d1025', border: '1px solid ' + (ok ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)'),
+                borderRadius: 10, padding: 18,
+                opacity: ok ? 1 : 0.55, transition: 'all 0.2s', position: 'relative',
+              }}
+              onMouseEnter={e => { if (ok) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = ok ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ position: 'absolute', top: 12, right: 12, padding: '3px 10px', borderRadius: 12, background: 'rgba(' + (ctg === 'hizmet' ? '255,152,0' : ctg === 'teknoloji' ? '79,195,247' : ctg === 'gaming' ? '46,204,113' : ctg === 'ulasim' ? '233,30,99' : ctg === 'egitim' ? '155,89,182' : '200,168,94') + ',0.1)', color: ctgColor, fontSize: 9, fontWeight: 600, border: '1px solid ' + 'rgba(' + (ctg === 'hizmet' ? '255,152,0' : ctg === 'teknoloji' ? '79,195,247' : ctg === 'gaming' ? '46,204,113' : ctg === 'ulasim' ? '233,30,99' : ctg === 'egitim' ? '155,89,182' : '200,168,94') + ',0.2)' }}>
+                  {ctgIcon} {ctgLabel}
                 </div>
 
-                {/* Title & Company */}
-                <div style={{ marginBottom: 10, paddingRight: 60 }}>
+                <div style={{ marginBottom: 12, paddingRight: 60 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: ok ? '#e0e0e0' : '#666' }}>{job.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 2 }}>{job.description}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>{job.description}</div>
                 </div>
 
-                {/* Details row */}
-                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#ffd93d' }}>
+                <div style={{ display: 'flex', gap: 18, marginBottom: 14, fontSize: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ffd93d' }}>
                     <span>💰</span> <span style={{ fontWeight: 700 }}>{job.pay} TL</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-secondary)' }}>
                     <span>⏱️</span> {job.durationHours} saat
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: ok ? '#2ecc71' : '#f44336' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: ok ? '#2ecc71' : '#f44336', fontWeight: 600 }}>
                     <span>📊</span> Seviye {reqLvl}
                   </div>
                 </div>
 
-                {/* Stat bonuses */}
                 {Object.keys(job.statBonus).length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap' }}>
                     {Object.entries(job.statBonus).map(([stat, val]) => (
-                      <span key={stat} style={{ padding: '2px 6px', borderRadius: 3, background: 'rgba(46,204,113,0.1)', color: '#2ecc71', fontSize: 9, fontWeight: 600 }}>
+                      <span key={stat} style={{ padding: '3px 8px', borderRadius: 4, background: 'rgba(46,204,113,0.08)', color: '#2ecc71', fontSize: 9, fontWeight: 600, border: '1px solid rgba(46,204,113,0.12)' }}>
                         +{val} {stat === 'mekanik' ? '⚔️ Mekanik' : stat === 'oyunBilgisi' ? '📖 Oyun Bilgisi' : stat === 'takimUyumu' ? '🤝 Takim Uyumu' : '🧠 Mental'}
                       </span>
                     ))}
                   </div>
                 )}
 
-                {/* Apply button */}
                 <button onClick={() => ok && workJob(job.id)} disabled={!ok}
                   style={{
-                    width: '100%', padding: '8px 0', borderRadius: 6, border: 'none',
-                    background: ok ? 'linear-gradient(135deg, #4fc3f7, #2980b9)' : '#1a1a2e',
-                    color: ok ? '#fff' : '#666', fontSize: 12, fontWeight: 700,
+                    width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                    background: ok ? 'linear-gradient(135deg, #4fc3f7, #2196f3)' : '#1a1a2e',
+                    color: ok ? '#0a0a1a' : '#666', fontSize: 12, fontWeight: 700,
                     cursor: ok ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
-                  }}>
+                    transition: 'all 0.2s', letterSpacing: 0.5,
+                    boxShadow: ok ? '0 2px 12px rgba(79,195,247,0.2)' : 'none',
+                  }}
+                  onMouseEnter={e => { if (ok) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(79,195,247,0.35)'; } }}
+                  onMouseLeave={e => { if (ok) { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(79,195,247,0.2)'; } }}>
                   {ok ? '✅ Basvur' : `🔒 Seviye ${reqLvl} Gerekli`}
                 </button>
               </div>
@@ -508,9 +806,8 @@ function AmazonUI() {
 }
 
 function WhatsAppUI() {
-  const { messages, acceptOffer, rejectOffer, bluffOffer, markChatRead } = useGameStore();
+  const { messages, acceptOffer, rejectOffer, bluffOffer, markChatRead, replyToMessage } = useGameStore();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
 
   // Group messages by sender
   const contacts = useMemo(() => {
@@ -532,11 +829,6 @@ function WhatsAppUI() {
   }, [messages]);
 
   const chatMessages = selectedChat ? messages.filter(m => m.from === selectedChat) : [];
-
-  const handleSend = () => {
-    if (!replyText.trim()) return;
-    setReplyText('');
-  };
 
   const colors = ['#e74c3c', '#2ecc71', '#3498db', '#9b59b6', '#f39c12', '#1abc9c', '#e67e22', '#e91e63'];
   const getAvatarColor = (name: string) => colors[name.charCodeAt(0) % colors.length];
@@ -605,8 +897,9 @@ function WhatsAppUI() {
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: '75%' }}>
                     <div style={{
                       padding: '7px 12px', borderRadius: 8, fontSize: 12, lineHeight: 1.4,
-                      background: '#1a3a2a', color: '#e0e0e0',
+                      background: msg.replied ? '#0d1025' : '#1a3a2a', color: '#e0e0e0',
                       borderBottomLeftRadius: 2,
+                      border: msg.replied ? '1px solid var(--border)' : 'none',
                     }}>
                       {msg.text}
                     </div>
@@ -617,20 +910,23 @@ function WhatsAppUI() {
                         <button className="btn btn-danger btn-sm" onClick={() => rejectOffer(msg.id)}>Reddet</button>
                       </div>
                     )}
+                    {msg.replyOptions && !msg.replied && (
+                      <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {msg.replyOptions.map(opt => (
+                          <button key={opt.id} onClick={() => replyToMessage(msg.id, opt.id)}
+                            style={{
+                              padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600,
+                              background: opt.type === 'positive' ? 'linear-gradient(135deg, #2ecc71, #27ae60)' : 'linear-gradient(135deg, #e74c3c, #c0392b)',
+                              color: '#fff',
+                            }}>
+                            {opt.text}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
-            </div>
-            {/* Reply box */}
-            <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, background: '#0d1025' }}>
-              <input value={replyText} onChange={e => setReplyText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-                placeholder="Mesaj yaz..."
-                style={{ flex: 1, padding: '8px 12px', borderRadius: 20, border: '1px solid var(--border)', background: '#0a0a1a', color: '#e0e0e0', fontSize: 12, fontFamily: 'inherit', outline: 'none' }} />
-              <button onClick={handleSend}
-                style={{ padding: '8px 14px', borderRadius: 20, border: 'none', background: '#25d366', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                Gonder
-              </button>
             </div>
           </>
         ) : (
