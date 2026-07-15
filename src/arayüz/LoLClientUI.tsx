@@ -95,7 +95,7 @@ export function LoLClientUI() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}>
       {/* Top Bar */}
-      <div style={{ background: 'linear-gradient(180deg, #0d1025 0%, #1a1a2e 100%)', borderBottom: '1px solid var(--border)', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <div className="lol-topbar" style={{ background: 'linear-gradient(180deg, #0d1025 0%, #1a1a2e 100%)', borderBottom: '1px solid var(--border)', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
         <div onClick={() => setPage('home')} style={{ fontSize: 20, fontWeight: 900, background: 'linear-gradient(135deg, #c8a85e, #f0d68a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: 1, marginRight: 12, cursor: 'pointer' }}>
           LoL
         </div>
@@ -336,7 +336,7 @@ function HomeView({ s, onPlay }: { s: any; onPlay: () => void }) {
       {/* News Grid */}
       <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 'bold', marginBottom: 14, color: '#c8a85e' }}>LOLE ILISKIN HABERLER</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10 }}>
+        <div className="grid-3 full-width-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 10 }}>
           {news.map((n, i) => (
             <div key={i} style={{ display: 'flex', gap: 14, padding: 14, background: '#0d1025', border: '1px solid var(--border)', borderRadius: 8, transition: 'all 0.2s', cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#c8a85e'; e.currentTarget.style.transform = 'translateX(3px)'; }}
@@ -1040,7 +1040,7 @@ function MatchMinimap({ laneChamps, events, currentStep }: { laneChamps: any[]; 
   });
 
   return (
-    <div style={{
+    <div className="match-map" style={{
       width: '100%', height: 300, borderRadius: 12, overflow: 'hidden',
       position: 'relative', marginBottom: 8, border: '2px solid #1a3a1a',
       background: '#061006',
@@ -1321,7 +1321,7 @@ function LobbyView({ s, mode, preferredLane, onLanePick, onStart, onBack }: { s:
   };
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '20px 10px' }}>
+    <div className="full-width-mobile" style={{ maxWidth: 700, margin: '0 auto', padding: '20px 10px' }}>
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ fontSize: 24, fontWeight: 900, color: modeColor, letterSpacing: 2 }}>{modeLabel} OYUN</div>
@@ -1532,7 +1532,7 @@ function PostMatchView({ s, onBack, onPlayAgain }: { s: any; onBack: () => void;
   const spells = (r.spells || ['flash', 'ignite']).map((sid: string) => summonerSpells.find((sp: any) => sp.id === sid)).filter(Boolean);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 10px' }}>
+    <div className="full-width-mobile" style={{ maxWidth: 900, margin: '0 auto', padding: '20px 10px' }}>
       {/* Victory / Defeat Banner */}
       <div style={{
         background: r.won
@@ -1551,7 +1551,7 @@ function PostMatchView({ s, onBack, onPlayAgain }: { s: any; onBack: () => void;
         </div>
 
         {/* Champion + KDA */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '12px 28px 20px' }}>
+        <div className="postmatch-kda" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, padding: '12px 28px 20px' }}>
           {/* Champion */}
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', border: '3px solid ' + (r.won ? '#2ecc71' : '#f44336'), margin: '0 auto', background: '#0a0a1a' }}>
@@ -1821,7 +1821,7 @@ function StoreView({ s }: { s: any }) {
             ))}
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 8 }}>{s.champions.filter((c: any) => c.unlocked).length}/{s.champions.length} acik</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 130px)', gap: 10 }}>
+          <div className="store-champs" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 130px)', gap: 10 }}>
             {filtered.map((c: any) => {
               const owned = c.unlocked;
               const canBuy = !owned && s.blueEssence >= c.cost;

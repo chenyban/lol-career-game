@@ -1,2 +1,48 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow: hidden; font-size: 14px; }
+#root { height: 100%; }
+
+@media (max-width: 768px) {
+  html, body { font-size: 13px; touch-action: manipulation; }
+  .desktop-grid { grid-template-columns: repeat(auto-fill, 80px) !important; grid-auto-rows: 80px !important; gap: 10px !important; }
+  .app-icon { width: 80px !important; height: 80px !important; border-radius: 12px !important; font-size: 9px !important; }
+  .app-icon span:first-child { font-size: 24px !important; }
+  .taskbar-text { font-size: 10px !important; gap: 6px !important; }
+  .side-by-side { flex-direction: column !important; }
+  .side-by-side > div:first-child { width: 100% !important; height: 35% !important; border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.06) !important; }
+  .contact-list { width: 100% !important; max-height: 150px !important; }
+  .chat-view { width: 100% !important; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-6 { grid-template-columns: repeat(3, 1fr) !important; }
+  .lol-topbar { padding: 6px 10px !important; gap: 4px !important; }
+  .lol-topbar-tab { padding: 4px 8px !important; font-size: 10px !important; }
+  .hide-mobile { display: none !important; }
+  .full-width-mobile { width: 100% !important; max-width: 100% !important; padding: 10px !important; }
+  .match-map { height: 200px !important; }
+  .btn { padding: 10px 14px !important; font-size: 12px !important; }
+  input, button { font-size: 14px !important; min-height: 42px; }
+}
+
+@media (max-width: 480px) {
+  html, body { font-size: 12px; }
+  .desktop-grid { grid-template-columns: repeat(auto-fill, 70px) !important; grid-auto-rows: 70px !important; gap: 8px !important; }
+  .app-icon { width: 70px !important; height: 70px !important; }
+  .app-icon span:first-child { font-size: 22px !important; }
+  .grid-2 { grid-template-columns: 1fr !important; }
+  .grid-3 { grid-template-columns: 1fr 1fr !important; }
+  .grid-4 { grid-template-columns: 1fr !important; }
+  .grid-6 { grid-template-columns: repeat(2, 1fr) !important; }
+  .postmatch-kda { flex-direction: column !important; gap: 16px !important; }
+  .champ-select-champs { grid-template-columns: repeat(4, 1fr) !important; }
+  .store-champs { grid-template-columns: repeat(5, 1fr) !important; }
+  .store-skins { grid-template-columns: repeat(2, 1fr) !important; }
+  .shop-items { grid-template-columns: repeat(2, 1fr) !important; }
+  .skin-select-grid { grid-template-columns: repeat(3, 1fr) !important; }
+}
+
+/* Touch optimization for all buttons */
+@media (hover: none) and (pointer: coarse) {
+  button, .btn, [onclick] { min-height: 44px; min-width: 44px; cursor: pointer; }
+  input { min-height: 44px; font-size: 16px !important; }
+}

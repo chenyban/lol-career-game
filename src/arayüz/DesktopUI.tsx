@@ -131,9 +131,9 @@ export function DesktopUI() {
       <GlobalStyles />
       <div style={{ flex: 1, background: `url('/ana-menu-bg.png') center / cover no-repeat`, padding: 24, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(13,16,37,0.55) 0%, rgba(26,10,46,0.45) 50%, rgba(13,16,37,0.55) 100%), radial-gradient(ellipse at 30% 50%, rgba(200,168,94,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 50%, rgba(79,195,247,0.04) 0%, transparent 60%)' }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 100px)', gridAutoRows: 100, gap: 16, alignContent: 'start', justifyContent: 'start', position: 'relative', zIndex: 1 }}>
+        <div className="desktop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 100px)', gridAutoRows: 100, gap: 16, alignContent: 'start', justifyContent: 'start', position: 'relative', zIndex: 1 }}>
           {apps.map(id => (
-            <button key={id} onClick={() => openApp(id)}
+            <button key={id} onClick={() => openApp(id)} className="app-icon"
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 10,
                 borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)',
@@ -170,7 +170,7 @@ export function DesktopUI() {
         <div style={{ flex: 1 }} />
         {energyBar}
         <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#888' }}>
+        <div className="taskbar-text" style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#888' }}>
           <span style={{ color: '#c8a85e', fontWeight: 700 }}>{name}</span>
           <span style={{ fontWeight: 600, color: '#ccc' }}>{rankLabel}</span>
           {fame > 0 && <span style={{ color: '#f39c12', fontWeight: 700 }}>⭐{fame}</span>}
@@ -834,9 +834,9 @@ function WhatsAppUI() {
   const getAvatarColor = (name: string) => colors[name.charCodeAt(0) % colors.length];
 
   return (
-    <div style={{ height: '100%', display: 'flex', background: '#0a0a0a' }}>
+    <div id="whatsapp-container" className="side-by-side" style={{ height: '100%', display: 'flex', background: '#0a0a0a' }}>
       {/* Contact List Sidebar */}
-      <div style={{ width: 300, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, background: '#0d1025' }}>
+      <div id="whatsapp-contacts" className="contact-list" style={{ width: 300, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, background: '#0d1025' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#e0e0e0' }}>💬 WhatsApp</span>
           <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{contacts.length} sohbet</span>
